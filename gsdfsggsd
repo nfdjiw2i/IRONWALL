@@ -50,11 +50,24 @@ local function label(parent, text, size, color, font)
     }, parent)
 end
 
-function Library:CreateWindow(title)
+function Library:CreateWindow(title, options)
+    options = options or {}
     local player = Players.LocalPlayer
     local playerGui = player:WaitForChild("PlayerGui")
     local self = setmetatable({
         Categories = {},
+        Theme = {
+            Background = options.Background or Color3.fromRGB(6, 7, 9),
+            Surface = options.Surface or Color3.fromRGB(11, 12, 15),
+            Row = options.Row or Color3.fromRGB(18, 19, 23),
+            Hover = options.Hover or Color3.fromRGB(31, 33, 39),
+            Border = options.Border or Color3.fromRGB(57, 60, 69),
+            Text = options.Text or Color3.fromRGB(242, 243, 247),
+            Muted = options.Muted or Color3.fromRGB(153, 157, 167),
+            Accent = options.Accent or Color3.fromRGB(190, 204, 231),
+            Transparency = math.clamp(tonumber(options.Transparency) or 0.22, 0, 0.8)
+        },
+        CurrentCategory = nil,
         Connections = {},
         CleanupCallbacks = {},
         ToggleControls = {},
@@ -62,6 +75,15 @@ function Library:CreateWindow(title)
         CategoryIndex = 0,
         Search = ""
     }, Library)
+
+    C.bg = self.Theme.Background
+    C.surface = self.Theme.Surface
+    C.row = self.Theme.Row
+    C.hover = self.Theme.Hover
+    C.border = self.Theme.Border
+    C.text = self.Theme.Text
+    C.muted = self.Theme.Muted
+    C.accent = self.Theme.Accent
 
     local gui = make("ScreenGui", {
         Name = "ExecutorLibrary",
@@ -461,6 +483,8 @@ function Library:CreateWindow(title)
             refreshSearch()
             return row, item
         end
+
+        local selfWindow = self
 
         function category:Button(name, description, callback)
             if type(description) == "function" then
