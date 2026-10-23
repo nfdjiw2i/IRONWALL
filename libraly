@@ -27,6 +27,7 @@ local function make(class, props, parent)
 end
 
 local function corner(obj, radius)
+    return nil
 end
 
 local function stroke(obj, color, transparency)
@@ -148,16 +149,30 @@ function Library:CreateWindow(title, options)
         Position = UDim2.new(1, -39, 0, 9),
         Size = UDim2.fromOffset(29, 29),
         BackgroundColor3 = C.row,
+        BackgroundTransparency = 1,
         BorderSizePixel = 0,
         Text = "×",
-        TextColor3 = C.muted,
-        TextSize = 1,
+        TextColor3 = C.text,
+        TextSize = 22,
         Font = Enum.Font.Gotham,
         AutoButtonColor = false,
         ZIndex = 4
     }, topbar)
     corner(close, 8)
-    stroke(close, C.border, 0)
+
+    local minimizeButton = make("TextButton", {
+        Position = UDim2.new(1, -72, 0, 9),
+        Size = UDim2.fromOffset(25, 29),
+        BackgroundColor3 = C.row,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Text = "−",
+        TextColor3 = C.text,
+        TextSize = 21,
+        Font = Enum.Font.Gotham,
+        AutoButtonColor = false,
+        ZIndex = 4
+    }, topbar)
 
     local searchArea = make("Frame", {
         Position = UDim2.fromOffset(8, 56),
@@ -290,11 +305,16 @@ function Library:CreateWindow(title, options)
             return
         end
         local width = grid.AbsoluteSize.X
-        local columns = width >= 900 and 3 or (width >= 570 and 2 or 1)
+        if width <= 0 then
+            return
+        end
         local gap = 8
+        local columns = width >= 900 and 3 or (width >= 570 and 2 or 1)
         local cellWidth = math.max(180, math.floor((width - gap * (columns - 1)) / columns))
-        gridLayout.CellSize = UDim2.fromOffset(cellWidth, 290)
+        gridLayout.CellSize = UDim2.new(0, cellWidth, 0, 290)
         gridLayout.CellPadding = UDim2.fromOffset(gap, gap)
+        gridLayout.FillDirection = Enum.FillDirection.Horizontal
+        gridLayout.FillDirectionMaxCells = columns
         local visibleCount = 0
         for _, category in ipairs(self.Categories) do
             if category.Frame.Visible then
@@ -355,7 +375,7 @@ function Library:CreateWindow(title, options)
         local frame = make("Frame", {
             Name = categoryName,
             BackgroundColor3 = C.surface,
-            BackgroundTransparency = 0.24,
+            BackgroundTransparency = 0.42,
             BorderSizePixel = 1,
             BorderColor3 = C.border,
             ClipsDescendants = true,
@@ -369,7 +389,7 @@ function Library:CreateWindow(title, options)
             Position = UDim2.fromOffset(4, 4),
             Size = UDim2.new(1, -8, 0, 32),
             BackgroundColor3 = C.bg,
-            BackgroundTransparency = 0.10,
+            BackgroundTransparency = 0.14,
             BorderSizePixel = 0,
             Text = "",
             AutoButtonColor = false,
@@ -436,7 +456,7 @@ function Library:CreateWindow(title, options)
                 Name = tostring(itemName),
                 Size = UDim2.new(1, -2, 0, height),
                 BackgroundColor3 = C.row,
-                BackgroundTransparency = 0.20,
+                BackgroundTransparency = 0.34,
                 BorderSizePixel = 1,
                 BorderColor3 = C.border,
                 ZIndex = 2
@@ -661,8 +681,19 @@ function Library:CreateWindow(title, options)
             return control
         end
 
+        local function isKeyCode(value)
+            if typeof(value) == "EnumItem" then
+                return value.EnumType == Enum.KeyCode
+            end
+            if type(value) == "string" then
+                local ok, result = pcall(function() return Enum.KeyCode[value] end)
+                return ok and result ~= nil
+            end
+            return false
+        end
+
         function category:Keybind(name, description, defaultKey, callback)
-            if typeof(description) == "EnumItem" or type(description) == "string" and Enum.KeyCode[description] then
+            if isKeyCode(description) then
                 callback = defaultKey
                 defaultKey = description
                 description = nil
@@ -674,7 +705,7 @@ function Library:CreateWindow(title, options)
         end
 
         function category:ToggleKeybind(name, description, defaultKey, callback, stateCallback)
-            if typeof(description) == "EnumItem" or type(description) == "string" and Enum.KeyCode[description] then
+            if isKeyCode(description) then
                 stateCallback = callback
                 callback = defaultKey
                 defaultKey = description
@@ -809,7 +840,7 @@ function Library:CreateWindow(title, options)
             content.Size = category.Collapsed
                 and UDim2.new(1, -10, 0, 0)
                 or UDim2.new(1, -10, 1, -47)
-            frame.BackgroundTransparency = category.Collapsed and 1 or 0.14
+            frame.BackgroundTransparency = category.Collapsed and 1 or 0.42
             updateGrid()
         end
 
@@ -863,6 +894,12 @@ function Library:CreateWindow(title, options)
         self.CurrentCategory = category
         sortCategories()
         refreshSearch()
+        task.defer(function()
+            if not self.Destroyed then
+                updateGrid()
+                refreshSearch()
+            end
+        end)
         return category
     end
 
@@ -952,6 +989,7 @@ function Library:CreateWindow(title, options)
     end
 
     self:Connect(restore.MouseButton1Click, showWindow)
+    self:Connect(minimizeButton.MouseButton1Click, hideWindow)
     self:Connect(close.MouseButton1Click, function()
         self:Destroy()
     end)
@@ -1056,13 +1094,21 @@ function Library:CreateWindow(title, options)
         gui:Destroy()
     end
 
+    self:Connect(minimizeButton.MouseEnter, function()
+        minimizeButton.BackgroundTransparency = 0.15
+    end)
+    self:Connect(minimizeButton.MouseLeave, function()
+        minimizeButton.BackgroundTransparency = 1
+    end)
     self:Connect(close.MouseEnter, function()
+        close.BackgroundTransparency = 0.15
         close.BackgroundColor3 = C.hover
         close.TextColor3 = C.text
     end)
     self:Connect(close.MouseLeave, function()
+        close.BackgroundTransparency = 1
         close.BackgroundColor3 = C.row
-        close.TextColor3 = C.muted
+        close.TextColor3 = C.text
     end)
 
     task.defer(function()
