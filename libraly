@@ -30,11 +30,8 @@ local function corner(obj, radius)
 end
 
 local function stroke(obj, color, transparency)
-    make("UIStroke", {
-        Color = color or C.border,
-        Transparency = transparency or 0,
-        Thickness = 1
-    }, obj)
+    obj.BorderSizePixel = 1
+    obj.BorderColor3 = color or C.border
 end
 
 local function label(parent, text, size, color, font)
@@ -110,8 +107,9 @@ function Library:CreateWindow(title, options)
         Position = UDim2.new(0.5, -490, 0.5, -300),
         Size = UDim2.fromOffset(980, 600),
         BackgroundColor3 = C.bg,
-        BackgroundTransparency = 0,
-        BorderSizePixel = 0,
+        BackgroundTransparency = 0.28,
+        BorderSizePixel = 1,
+        BorderColor3 = C.border,
         ClipsDescendants = true
     }, gui)
     stroke(window, C.border, 0)
@@ -120,7 +118,7 @@ function Library:CreateWindow(title, options)
     local topbar = make("Frame", {
         Size = UDim2.new(1, 0, 0, 49),
         BackgroundColor3 = C.surface,
-        BackgroundTransparency = 0,
+        BackgroundTransparency = 0.18,
         BorderSizePixel = 0,
         ZIndex = 2
     }, window)
@@ -129,17 +127,17 @@ function Library:CreateWindow(title, options)
         Position = UDim2.new(0, 0, 1, -10),
         Size = UDim2.new(1, 0, 0, 10),
         BackgroundColor3 = C.surface,
-        BackgroundTransparency = 0,
+        BackgroundTransparency = 0.12,
         BorderSizePixel = 0,
         ZIndex = 2
     }, topbar)
 
-    local heading = label(topbar, title or "Executor", 12, C.text, Enum.Font.Gotham)
+    local heading = label(topbar, title or "Executor", 13, C.text, Enum.Font.Gotham)
     heading.Position = UDim2.fromOffset(16, 0)
     heading.Size = UDim2.new(1, -160, 1, 0)
     heading.ZIndex = 3
 
-    local status = label(topbar, "ONLINE", 8, C.muted, Enum.Font.Gotham)
+    local status = label(topbar, "ONLINE", 9, C.muted, Enum.Font.Gotham)
     status.AnchorPoint = Vector2.new(1, 0)
     status.Position = UDim2.new(1, -48, 0, 0)
     status.Size = UDim2.fromOffset(48, 49)
@@ -165,7 +163,7 @@ function Library:CreateWindow(title, options)
         Position = UDim2.fromOffset(8, 56),
         Size = UDim2.new(1, -16, 0, 42),
         BackgroundColor3 = C.surface,
-        BackgroundTransparency = 0,
+        BackgroundTransparency = 0.12,
         BorderSizePixel = 0,
         ZIndex = 2
     }, window)
@@ -176,14 +174,14 @@ function Library:CreateWindow(title, options)
         Position = UDim2.fromOffset(6, 5),
         Size = UDim2.new(1, -211, 1, -10),
         BackgroundColor3 = C.bg,
-        BackgroundTransparency = 0,
+        BackgroundTransparency = 0.18,
         BorderSizePixel = 0,
         ClearTextOnFocus = false,
         Text = "",
         PlaceholderText = "SEARCH FUNCTIONS...",
         PlaceholderColor3 = C.muted,
         TextColor3 = C.text,
-        TextSize = 9,
+        TextSize = 11,
         Font = Enum.Font.Gotham,
         TextXAlignment = Enum.TextXAlignment.Left,
         ZIndex = 3
@@ -205,7 +203,7 @@ function Library:CreateWindow(title, options)
             BorderSizePixel = 0,
             Text = text,
             TextColor3 = C.text,
-            TextSize = 9,
+            TextSize = 10,
             Font = Enum.Font.Gotham,
             AutoButtonColor = false,
             ZIndex = 3
@@ -357,8 +355,9 @@ function Library:CreateWindow(title, options)
         local frame = make("Frame", {
             Name = categoryName,
             BackgroundColor3 = C.surface,
-            BackgroundTransparency = 0,
-            BorderSizePixel = 0,
+            BackgroundTransparency = 0.24,
+            BorderSizePixel = 1,
+            BorderColor3 = C.border,
             ClipsDescendants = true,
             LayoutOrder = tonumber(order) or id,
             ZIndex = 1
@@ -370,7 +369,7 @@ function Library:CreateWindow(title, options)
             Position = UDim2.fromOffset(4, 4),
             Size = UDim2.new(1, -8, 0, 32),
             BackgroundColor3 = C.bg,
-            BackgroundTransparency = 0,
+            BackgroundTransparency = 0.10,
             BorderSizePixel = 0,
             Text = "",
             AutoButtonColor = false,
@@ -379,7 +378,7 @@ function Library:CreateWindow(title, options)
         corner(header, 6)
         stroke(header, C.border, 0)
 
-        local headerText = label(header, string.upper(categoryName), 9, C.text, Enum.Font.Gotham)
+        local headerText = label(header, string.upper(categoryName), 10, C.text, Enum.Font.Gotham)
         headerText.Position = UDim2.fromOffset(9, 0)
         headerText.Size = UDim2.new(1, -32, 1, 0)
         headerText.ZIndex = 4
@@ -437,8 +436,9 @@ function Library:CreateWindow(title, options)
                 Name = tostring(itemName),
                 Size = UDim2.new(1, -2, 0, height),
                 BackgroundColor3 = C.row,
-                BackgroundTransparency = 0,
-                BorderSizePixel = 0,
+                BackgroundTransparency = 0.20,
+                BorderSizePixel = 1,
+                BorderColor3 = C.border,
                 ZIndex = 2
             }, content)
             corner(row, 7)
@@ -460,7 +460,7 @@ function Library:CreateWindow(title, options)
                 BorderSizePixel = 0,
                 Text = tostring(name),
                 TextColor3 = C.text,
-                TextSize = 10,
+                TextSize = 11,
                 Font = Enum.Font.Gotham,
                 AutoButtonColor = false,
                 ZIndex = 3
@@ -487,7 +487,7 @@ function Library:CreateWindow(title, options)
                 callback = description
             end
             local row, item = newItem(name, 33)
-            local caption = label(row, name, 10, C.text)
+            local caption = label(row, name, 11, C.text)
             caption.Position = UDim2.fromOffset(10, 0)
             caption.Size = UDim2.new(1, -65, 1, 0)
             caption.ZIndex = 3
@@ -496,8 +496,10 @@ function Library:CreateWindow(title, options)
                 AnchorPoint = Vector2.new(1, 0.5),
                 Position = UDim2.new(1, -9, 0.5, 0),
                 Size = UDim2.fromOffset(38, 19),
-                BackgroundColor3 = C.hover,
-                BorderSizePixel = 0,
+                BackgroundColor3 = C.bg,
+                BackgroundTransparency = 0.05,
+                BorderSizePixel = 1,
+                BorderColor3 = C.border,
                 Text = "",
                 AutoButtonColor = false,
                 ZIndex = 3
@@ -506,7 +508,7 @@ function Library:CreateWindow(title, options)
 
             local knob = make("Frame", {
                 Position = UDim2.fromOffset(3, 3),
-                Size = UDim2.fromOffset(13, 13),
+                Size = UDim2.fromOffset(11, 11),
                 BackgroundColor3 = C.text,
                 BorderSizePixel = 0,
                 ZIndex = 4
@@ -522,7 +524,7 @@ function Library:CreateWindow(title, options)
                     BackgroundColor3 = enabled and C.enabled or C.bg
                 }):Play()
                 TweenService:Create(knob, TweenInfo.new(0.12), {
-                    Position = enabled and UDim2.new(1, -16, 0, 3) or UDim2.fromOffset(3, 3)
+                    Position = enabled and UDim2.new(1, -14, 0, 3) or UDim2.fromOffset(3, 3)
                 }):Play()
                 if not silent and type(callback) == "function" then
                     task.spawn(callback, enabled)
@@ -547,8 +549,8 @@ function Library:CreateWindow(title, options)
             maximum = tonumber(maximum) or 100
             default = math.clamp(tonumber(default) or minimum, minimum, maximum)
 
-            local row, item = newItem(name, 56)
-            local caption = label(row, name, 10, C.text)
+            local row, item = newItem(name, 60)
+            local caption = label(row, name, 11, C.text)
             caption.Position = UDim2.fromOffset(10, 2)
             caption.Size = UDim2.new(1, -55, 0, 21)
             caption.ZIndex = 3
@@ -561,10 +563,12 @@ function Library:CreateWindow(title, options)
             valueLabel.ZIndex = 3
 
             local bar = make("TextButton", {
-                Position = UDim2.new(0, 10, 0, 37),
-                Size = UDim2.new(1, -20, 0, 4),
-                BackgroundColor3 = C.hover,
-                BorderSizePixel = 0,
+                Position = UDim2.new(0, 10, 0, 38),
+                Size = UDim2.new(1, -20, 0, 6),
+                BackgroundColor3 = C.bg,
+                BackgroundTransparency = 0.05,
+                BorderSizePixel = 1,
+                BorderColor3 = C.border,
                 Text = "",
                 AutoButtonColor = false,
                 ZIndex = 3
@@ -582,9 +586,10 @@ function Library:CreateWindow(title, options)
             local knob = make("Frame", {
                 AnchorPoint = Vector2.new(0.5, 0.5),
                 Position = UDim2.new(0, 0, 0.5, 0),
-                Size = UDim2.fromOffset(10, 10),
+                Size = UDim2.fromOffset(12, 12),
                 BackgroundColor3 = C.text,
-                BorderSizePixel = 0,
+                BorderSizePixel = 1,
+                BorderColor3 = C.bg,
                 ZIndex = 5
             }, bar)
             corner(knob, 6)
