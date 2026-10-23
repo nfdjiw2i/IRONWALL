@@ -6,15 +6,15 @@ local UIS = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
 local C = {
-    bg = Color3.fromRGB(6, 7, 9),
-    surface = Color3.fromRGB(11, 12, 15),
-    row = Color3.fromRGB(18, 19, 23),
-    hover = Color3.fromRGB(31, 33, 39),
-    border = Color3.fromRGB(57, 60, 69),
-    text = Color3.fromRGB(242, 243, 247),
-    muted = Color3.fromRGB(235, 235, 235),
-    accent = Color3.fromRGB(225, 227, 231),
-    enabled = Color3.fromRGB(76, 94, 130)
+    bg = Color3.fromRGB(0, 0, 0),
+    surface = Color3.fromRGB(0, 0, 0),
+    row = Color3.fromRGB(0, 0, 0),
+    hover = Color3.fromRGB(0, 0, 0),
+    border = Color3.fromRGB(255, 255, 255),
+    text = Color3.fromRGB(255, 255, 255),
+    muted = Color3.fromRGB(255, 255, 255),
+    accent = Color3.fromRGB(255, 255, 255),
+    enabled = Color3.fromRGB(255, 255, 255)
 }
 
 local function make(class, props, parent)
@@ -56,15 +56,15 @@ function Library:CreateWindow(title, options)
     local self = setmetatable({
         Categories = {},
         Theme = {
-            Background = options.Background or Color3.fromRGB(6, 7, 9),
-            Surface = options.Surface or Color3.fromRGB(11, 12, 15),
-            Row = options.Row or Color3.fromRGB(18, 19, 23),
-            Hover = options.Hover or Color3.fromRGB(31, 33, 39),
-            Border = options.Border or Color3.fromRGB(57, 60, 69),
-            Text = options.Text or Color3.fromRGB(242, 243, 247),
-            Muted = options.Muted or Color3.fromRGB(235, 235, 235),
-            Accent = options.Accent or Color3.fromRGB(225, 227, 231),
-            Transparency = math.clamp(tonumber(options.Transparency) or 0.22, 0, 0.8)
+            Background = options.Background or Color3.fromRGB(0, 0, 0),
+            Surface = options.Surface or Color3.fromRGB(0, 0, 0),
+            Row = options.Row or Color3.fromRGB(0, 0, 0),
+            Hover = options.Hover or Color3.fromRGB(0, 0, 0),
+            Border = options.Border or Color3.fromRGB(255, 255, 255),
+            Text = options.Text or Color3.fromRGB(255, 255, 255),
+            Muted = options.Muted or Color3.fromRGB(255, 255, 255),
+            Accent = options.Accent or Color3.fromRGB(255, 255, 255),
+            Transparency = 0
         },
         CurrentCategory = nil,
         Connections = {},
@@ -86,6 +86,7 @@ function Library:CreateWindow(title, options)
 
     local gui = make("ScreenGui", {
         Name = "ExecutorLibrary",
+        DisplayOrder = 9999,
         ResetOnSpawn = false,
         IgnoreGuiInset = true,
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -109,17 +110,17 @@ function Library:CreateWindow(title, options)
         Position = UDim2.new(0.5, -490, 0.5, -300),
         Size = UDim2.fromOffset(980, 600),
         BackgroundColor3 = C.bg,
-        BackgroundTransparency = 0.22,
+        BackgroundTransparency = 0,
         BorderSizePixel = 0,
         ClipsDescendants = true
     }, gui)
-    stroke(window, C.border, 0.08)
+    stroke(window, C.border, 0)
     self.Window = window
 
     local topbar = make("Frame", {
         Size = UDim2.new(1, 0, 0, 49),
         BackgroundColor3 = C.surface,
-        BackgroundTransparency = 0.12,
+        BackgroundTransparency = 0,
         BorderSizePixel = 0,
         ZIndex = 2
     }, window)
@@ -128,7 +129,7 @@ function Library:CreateWindow(title, options)
         Position = UDim2.new(0, 0, 1, -10),
         Size = UDim2.new(1, 0, 0, 10),
         BackgroundColor3 = C.surface,
-        BackgroundTransparency = 0.12,
+        BackgroundTransparency = 0,
         BorderSizePixel = 0,
         ZIndex = 2
     }, topbar)
@@ -158,24 +159,24 @@ function Library:CreateWindow(title, options)
         ZIndex = 4
     }, topbar)
     corner(close, 8)
-    stroke(close, C.border, 0.2)
+    stroke(close, C.border, 0)
 
     local searchArea = make("Frame", {
         Position = UDim2.fromOffset(8, 56),
         Size = UDim2.new(1, -16, 0, 42),
         BackgroundColor3 = C.surface,
-        BackgroundTransparency = 0.1,
+        BackgroundTransparency = 0,
         BorderSizePixel = 0,
         ZIndex = 2
     }, window)
     corner(searchArea, 8)
-    stroke(searchArea, C.border, 0.12)
+    stroke(searchArea, C.border, 0)
 
     local searchBox = make("TextBox", {
         Position = UDim2.fromOffset(6, 5),
         Size = UDim2.new(1, -211, 1, -10),
         BackgroundColor3 = C.bg,
-        BackgroundTransparency = 0.1,
+        BackgroundTransparency = 0,
         BorderSizePixel = 0,
         ClearTextOnFocus = false,
         Text = "",
@@ -188,7 +189,7 @@ function Library:CreateWindow(title, options)
         ZIndex = 3
     }, searchArea)
     corner(searchBox, 6)
-    stroke(searchBox, C.border, 0.2)
+    stroke(searchBox, C.border, 0)
     make("UIPadding", {
         PaddingLeft = UDim.new(0, 9),
         PaddingRight = UDim.new(0, 8)
@@ -200,7 +201,7 @@ function Library:CreateWindow(title, options)
             Position = UDim2.new(1, -right, 0.5, 0),
             Size = UDim2.fromOffset(width, 28),
             BackgroundColor3 = C.bg,
-            BackgroundTransparency = 0.05,
+            BackgroundTransparency = 0,
             BorderSizePixel = 0,
             Text = text,
             TextColor3 = C.text,
@@ -210,7 +211,7 @@ function Library:CreateWindow(title, options)
             ZIndex = 3
         }, searchArea)
         corner(button, 6)
-        stroke(button, C.border, 0.18)
+        stroke(button, C.border, 0)
         self:Connect(button.MouseEnter, function()
             button.BackgroundColor3 = C.hover
         end)
@@ -356,27 +357,27 @@ function Library:CreateWindow(title, options)
         local frame = make("Frame", {
             Name = categoryName,
             BackgroundColor3 = C.surface,
-            BackgroundTransparency = 0.14,
+            BackgroundTransparency = 0,
             BorderSizePixel = 0,
             ClipsDescendants = true,
             LayoutOrder = tonumber(order) or id,
             ZIndex = 1
         }, grid)
         corner(frame, 8)
-        stroke(frame, C.border, 0.1)
+        stroke(frame, C.border, 0)
 
         local header = make("TextButton", {
             Position = UDim2.fromOffset(4, 4),
             Size = UDim2.new(1, -8, 0, 32),
             BackgroundColor3 = C.bg,
-            BackgroundTransparency = 0.1,
+            BackgroundTransparency = 0,
             BorderSizePixel = 0,
             Text = "",
             AutoButtonColor = false,
             ZIndex = 3
         }, frame)
         corner(header, 6)
-        stroke(header, C.border, 0.22)
+        stroke(header, C.border, 0)
 
         local headerText = label(header, string.upper(categoryName), 9, C.text, Enum.Font.Gotham)
         headerText.Position = UDim2.fromOffset(9, 0)
@@ -436,12 +437,12 @@ function Library:CreateWindow(title, options)
                 Name = tostring(itemName),
                 Size = UDim2.new(1, -2, 0, height),
                 BackgroundColor3 = C.row,
-                BackgroundTransparency = 0.08,
+                BackgroundTransparency = 0,
                 BorderSizePixel = 0,
                 ZIndex = 2
             }, content)
             corner(row, 7)
-            stroke(row, C.border, 0.25)
+            stroke(row, C.border, 0)
             local item = {Name = tostring(itemName), Frame = row}
             table.insert(category.Items, item)
             refreshSearch()
@@ -518,7 +519,7 @@ function Library:CreateWindow(title, options)
             function control:Set(value, silent)
                 enabled = value == true
                 TweenService:Create(switch, TweenInfo.new(0.12), {
-                    BackgroundColor3 = enabled and C.enabled or C.hover
+                    BackgroundColor3 = enabled and C.enabled or C.bg
                 }):Play()
                 TweenService:Create(knob, TweenInfo.new(0.12), {
                     Position = enabled and UDim2.new(1, -16, 0, 3) or UDim2.fromOffset(3, 3)
