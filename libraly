@@ -61,7 +61,7 @@ function Library:CreateWindow(title, options)
             Text = options.Text or Color3.fromRGB(255, 255, 255),
             Muted = options.Muted or Color3.fromRGB(255, 255, 255),
             Accent = options.Accent or Color3.fromRGB(255, 255, 255),
-            Transparency = 0
+            Transparency = math.clamp(tonumber(options.Transparency) or 0.28, 0, 0.9)
         },
         CurrentCategory = nil,
         Connections = {},
@@ -107,7 +107,7 @@ function Library:CreateWindow(title, options)
         Position = UDim2.new(0.5, -490, 0.5, -300),
         Size = UDim2.fromOffset(980, 600),
         BackgroundColor3 = C.bg,
-        BackgroundTransparency = 0.28,
+        BackgroundTransparency = self.Theme.Transparency,
         BorderSizePixel = 1,
         BorderColor3 = C.border,
         ClipsDescendants = true
@@ -544,6 +544,148 @@ function Library:CreateWindow(title, options)
             return control
         end
 
+        local function createKeybind(name, description, defaultKey, callback, withToggle)
+            local row, item = newItem(name, 39)
+            local caption = label(row, name, 11, C.text, Enum.Font.Gotham)
+            caption.Position = UDim2.fromOffset(10, 0)
+            caption.Size = UDim2.new(1, withToggle and -112 or -100, 1, 0)
+            caption.ZIndex = 3
+
+            local enabled = not withToggle
+            local keyCode = defaultKey
+            if type(keyCode) == "string" then
+                keyCode = Enum.KeyCode[keyCode]
+            end
+            if typeof(keyCode) ~= "EnumItem" or keyCode.EnumType ~= Enum.KeyCode then
+                keyCode = Enum.KeyCode.Unknown
+            end
+            local waitingForKey = false
+
+            local keyButton = make("TextButton", {
+                AnchorPoint = Vector2.new(1, 0.5),
+                Position = UDim2.new(1, -8, 0.5, 0),
+                Size = UDim2.fromOffset(72, 25),
+                BackgroundColor3 = C.bg,
+                BackgroundTransparency = 0.05,
+                BorderSizePixel = 1,
+                BorderColor3 = C.border,
+                Text = "",
+                TextColor3 = C.text,
+                TextSize = 10,
+                Font = Enum.Font.Gotham,
+                AutoButtonColor = false,
+                ZIndex = 4
+            }, row)
+            local toggleButton, knob
+            if withToggle then
+                keyButton.Position = UDim2.new(1, -8, 0.5, 0)
+                keyButton.Size = UDim2.fromOffset(65, 25)
+                toggleButton = make("TextButton", {
+                    AnchorPoint = Vector2.new(1, 0.5),
+                    Position = UDim2.new(1, -80, 0.5, 0),
+                    Size = UDim2.fromOffset(25, 25),
+                    BackgroundColor3 = C.bg,
+                    BorderSizePixel = 1,
+                    BorderColor3 = C.border,
+                    Text = "OFF",
+                    TextColor3 = C.text,
+                    TextSize = 8,
+                    Font = Enum.Font.Gotham,
+                    AutoButtonColor = false,
+                    ZIndex = 4
+                }, row)
+            end
+
+            local function refreshKeyText()
+                keyButton.Text = waitingForKey and "PRESS KEY" or (keyCode == Enum.KeyCode.Unknown and "NONE" or keyCode.Name:upper())
+            end
+            refreshKeyText()
+
+            local control = {}
+            function control:SetKey(key)
+                if type(key) == "string" then key = Enum.KeyCode[key] end
+                if typeof(key) == "EnumItem" and key.EnumType == Enum.KeyCode then
+                    keyCode = key
+                    waitingForKey = false
+                    refreshKeyText()
+                end
+            end
+            function control:GetKey()
+                return keyCode
+            end
+            function control:Set(value, silent)
+                enabled = value == true
+                if toggleButton then
+                    toggleButton.Text = enabled and "ON" or "OFF"
+                    toggleButton.BackgroundColor3 = enabled and C.text or C.bg
+                    toggleButton.TextColor3 = enabled and C.bg or C.text
+                end
+                if not silent and withToggle and type(item.StateCallback) == "function" then
+                    task.spawn(item.StateCallback, enabled)
+                end
+            end
+            function control:Get()
+                return enabled
+            end
+
+            selfWindow:Connect(keyButton.MouseButton1Click, function()
+                waitingForKey = true
+                keyButton.Text = "PRESS KEY"
+            end)
+            if toggleButton then
+                selfWindow:Connect(toggleButton.MouseButton1Click, function()
+                    control:Set(not enabled)
+                end)
+            end
+            selfWindow:Connect(UIS.InputBegan, function(input, processed)
+                if selfWindow.Destroyed then return end
+                if waitingForKey then
+                    if input.KeyCode == Enum.KeyCode.Escape then
+                        keyCode = Enum.KeyCode.Unknown
+                    elseif input.KeyCode ~= Enum.KeyCode.Unknown then
+                        keyCode = input.KeyCode
+                    end
+                    waitingForKey = false
+                    refreshKeyText()
+                    return
+                end
+                if processed or UIS:GetFocusedTextBox() then return end
+                if keyCode ~= Enum.KeyCode.Unknown and input.KeyCode == keyCode and enabled then
+                    if type(callback) == "function" then
+                        task.spawn(callback, control)
+                    end
+                end
+            end)
+            item.Keybind = control
+            item.Description = description
+            return control
+        end
+
+        function category:Keybind(name, description, defaultKey, callback)
+            if typeof(description) == "EnumItem" or type(description) == "string" and Enum.KeyCode[description] then
+                callback = defaultKey
+                defaultKey = description
+                description = nil
+            elseif type(defaultKey) == "function" then
+                callback = defaultKey
+                defaultKey = Enum.KeyCode.Unknown
+            end
+            return createKeybind(name, description, defaultKey, callback, false)
+        end
+
+        function category:ToggleKeybind(name, description, defaultKey, callback, stateCallback)
+            if typeof(description) == "EnumItem" or type(description) == "string" and Enum.KeyCode[description] then
+                stateCallback = callback
+                callback = defaultKey
+                defaultKey = description
+                description = nil
+            end
+            local control = createKeybind(name, description, defaultKey, callback, true)
+            local item = category.Items[#category.Items]
+            item.StateCallback = stateCallback
+            return control
+        end
+
         function category:Slider(name, description, minimum, maximum, default, callback)
             minimum = tonumber(minimum) or 0
             maximum = tonumber(maximum) or 100
@@ -563,8 +705,8 @@ function Library:CreateWindow(title, options)
             valueLabel.ZIndex = 3
 
             local bar = make("TextButton", {
-                Position = UDim2.new(0, 10, 0, 38),
-                Size = UDim2.new(1, -20, 0, 6),
+                Position = UDim2.new(0, 10, 0, 37),
+                Size = UDim2.new(1, -20, 0, 8),
                 BackgroundColor3 = C.bg,
                 BackgroundTransparency = 0.05,
                 BorderSizePixel = 1,
@@ -586,7 +728,7 @@ function Library:CreateWindow(title, options)
             local knob = make("Frame", {
                 AnchorPoint = Vector2.new(0.5, 0.5),
                 Position = UDim2.new(0, 0, 0.5, 0),
-                Size = UDim2.fromOffset(12, 12),
+                Size = UDim2.fromOffset(13, 15),
                 BackgroundColor3 = C.text,
                 BorderSizePixel = 1,
                 BorderColor3 = C.bg,
@@ -736,6 +878,16 @@ function Library:CreateWindow(title, options)
             self:Category("GENERAL")
         end
         return self.CurrentCategory:Toggle(name, description, callback)
+    end
+
+    function self:Keybind(name, description, defaultKey, callback)
+        if not self.CurrentCategory then self:Category("GENERAL") end
+        return self.CurrentCategory:Keybind(name, description, defaultKey, callback)
+    end
+
+    function self:ToggleKeybind(name, description, defaultKey, callback, stateCallback)
+        if not self.CurrentCategory then self:Category("GENERAL") end
+        return self.CurrentCategory:ToggleKeybind(name, description, defaultKey, callback, stateCallback)
     end
 
     function self:Slider(name, description, minimum, maximum, default, callback)
