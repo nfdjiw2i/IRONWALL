@@ -156,13 +156,6 @@ function Library:CreateWindow(title, options)
     heading.Size = UDim2.new(1, -160, 1, 0)
     heading.ZIndex = 3
 
-    local status = label(topbar, "ONLINE", 9, C.muted, Enum.Font.Gotham)
-    status.AnchorPoint = Vector2.new(1, 0)
-    status.Position = UDim2.new(1, -48, 0, 0)
-    status.Size = UDim2.fromOffset(48, 49)
-    status.TextXAlignment = Enum.TextXAlignment.Right
-    status.ZIndex = 3
-
     local close = make("TextButton", {
         Position = UDim2.new(1, -39, 0, 9),
         Size = UDim2.fromOffset(29, 29),
