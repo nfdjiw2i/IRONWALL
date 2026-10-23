@@ -27,7 +27,25 @@ local function make(class, props, parent)
 end
 
 local function corner(obj, radius)
-    return nil
+    local existing = obj:FindFirstChildOfClass("UICorner")
+    local uiCorner = existing or Instance.new("UICorner")
+    uiCorner.CornerRadius = UDim.new(0, radius or 4)
+    uiCorner.Parent = obj
+    return uiCorner
+end
+
+local function roundedStroke(obj, color, thickness)
+    obj.BorderSizePixel = 0
+    local outline = obj:FindFirstChildOfClass("UIStroke")
+    if not outline then
+        outline = Instance.new("UIStroke")
+        outline.Parent = obj
+    end
+    outline.Color = color or C.border
+    outline.Thickness = thickness or 1
+    outline.Transparency = 0
+    outline.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    return outline
 end
 
 local function stroke(obj, color, transparency)
@@ -518,13 +536,14 @@ function Library:CreateWindow(title, options)
                 Size = UDim2.fromOffset(38, 19),
                 BackgroundColor3 = C.bg,
                 BackgroundTransparency = 0.05,
-                BorderSizePixel = 1,
+                BorderSizePixel = 0,
                 BorderColor3 = C.border,
                 Text = "",
                 AutoButtonColor = false,
                 ZIndex = 3
             }, row)
             corner(switch, 10)
+            roundedStroke(switch, C.border, 1)
 
             local knob = make("Frame", {
                 Position = UDim2.fromOffset(3, 3),
@@ -740,13 +759,14 @@ function Library:CreateWindow(title, options)
                 Size = UDim2.new(1, -20, 0, 8),
                 BackgroundColor3 = C.bg,
                 BackgroundTransparency = 0.05,
-                BorderSizePixel = 1,
+                BorderSizePixel = 0,
                 BorderColor3 = C.border,
                 Text = "",
                 AutoButtonColor = false,
                 ZIndex = 3
             }, row)
             corner(bar, 4)
+            roundedStroke(bar, C.border, 1)
 
             local fill = make("Frame", {
                 Size = UDim2.new(0, 0, 1, 0),
