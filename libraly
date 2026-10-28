@@ -1,3 +1,4 @@
+
 local Library = {}
 Library.__index = Library
 
@@ -5,16 +6,15 @@ local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local C = {
-    bg = Color3.fromRGB(0, 0, 0),
-    surface = Color3.fromRGB(0, 0, 0),
-    row = Color3.fromRGB(0, 0, 0),
-    hover = Color3.fromRGB(0, 0, 0),
-    border = Color3.fromRGB(255, 255, 255),
-    text = Color3.fromRGB(255, 255, 255),
-    muted = Color3.fromRGB(255, 255, 255),
-    accent = Color3.fromRGB(255, 255, 255),
-    enabled = Color3.fromRGB(255, 255, 255)
+local DEFAULTS = {
+    Background = Color3.fromRGB(0, 0, 0),
+    Surface = Color3.fromRGB(8, 8, 8),
+    Row = Color3.fromRGB(12, 12, 12),
+    Hover = Color3.fromRGB(30, 30, 30),
+    Border = Color3.fromRGB(65, 65, 65),
+    Text = Color3.fromRGB(255, 255, 255),
+    Muted = Color3.fromRGB(165, 165, 165),
+    Accent = Color3.fromRGB(255, 255, 255)
 }
 
 local function make(class, props, parent)
@@ -27,61 +27,59 @@ local function make(class, props, parent)
 end
 
 local function corner(obj, radius)
-    local existing = obj:FindFirstChildOfClass("UICorner")
-    local uiCorner = existing or Instance.new("UICorner")
-    uiCorner.CornerRadius = UDim.new(0, radius or 4)
-    uiCorner.Parent = obj
-    return uiCorner
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, radius or 5)
+    c.Parent = obj
+    return c
 end
 
-local function roundedStroke(obj, color, thickness)
+local function outline(obj, color, thickness)
     obj.BorderSizePixel = 0
-    local outline = obj:FindFirstChildOfClass("UIStroke")
-    if not outline then
-        outline = Instance.new("UIStroke")
-        outline.Parent = obj
-    end
-    outline.Color = color or C.border
-    outline.Thickness = thickness or 1
-    outline.Transparency = 0
-    outline.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    return outline
-end
-
-local function stroke(obj, color, transparency)
-    obj.BorderSizePixel = 1
-    obj.BorderColor3 = color or C.border
+    local s = Instance.new("UIStroke")
+    s.Color = color
+    s.Thickness = thickness or 1
+    s.Transparency = 0
+    s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    s.Parent = obj
+    return s
 end
 
 local function label(parent, text, size, color, font)
     return make("TextLabel", {
         BackgroundTransparency = 1,
         Text = tostring(text or ""),
-        TextColor3 = color or C.text,
-        TextSize = size or 10,
+        TextColor3 = color or Color3.new(1, 1, 1),
+        TextSize = size or 11,
         Font = font or Enum.Font.Gotham,
         TextXAlignment = Enum.TextXAlignment.Left,
         TextYAlignment = Enum.TextYAlignment.Center
     }, parent)
 end
 
+local function keyCode(value)
+    if typeof(value) == "EnumItem" and value.EnumType == Enum.KeyCode then
+        return value
+    end
+    if type(value) == "string" then
+        return Enum.KeyCode[value] or Enum.KeyCode.Unknown
+    end
+    return Enum.KeyCode.Unknown
+end
+
 function Library:CreateWindow(title, options)
     options = options or {}
+
     local player = Players.LocalPlayer
     local playerGui = player:WaitForChild("PlayerGui")
+    local theme = {}
+
+    for name, value in pairs(DEFAULTS) do
+        theme[name] = options[name] or value
+    end
+
     local self = setmetatable({
         Categories = {},
-        Theme = {
-            Background = options.Background or Color3.fromRGB(0, 0, 0),
-            Surface = options.Surface or Color3.fromRGB(0, 0, 0),
-            Row = options.Row or Color3.fromRGB(0, 0, 0),
-            Hover = options.Hover or Color3.fromRGB(0, 0, 0),
-            Border = options.Border or Color3.fromRGB(255, 255, 255),
-            Text = options.Text or Color3.fromRGB(255, 255, 255),
-            Muted = options.Muted or Color3.fromRGB(255, 255, 255),
-            Accent = options.Accent or Color3.fromRGB(255, 255, 255),
-            Transparency = math.clamp(tonumber(options.Transparency) or 0.28, 0, 0.9)
-        },
+        Theme = theme,
         CurrentCategory = nil,
         Connections = {},
         CleanupCallbacks = {},
@@ -91,25 +89,13 @@ function Library:CreateWindow(title, options)
         Search = ""
     }, Library)
 
-    C.bg = self.Theme.Background
-    C.surface = self.Theme.Surface
-    C.row = self.Theme.Row
-    C.hover = self.Theme.Hover
-    C.border = self.Theme.Border
-    C.text = self.Theme.Text
-    C.muted = self.Theme.Muted
-    C.accent = self.Theme.Accent
-
-    local gui = make("ScreenGui", {
-        Name = "ExecutorLibrary",
-        DisplayOrder = 9999,
-        ResetOnSpawn = false,
-        IgnoreGuiInset = true,
-        ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    }, playerGui)
-    self.Gui = gui
+    local C = theme
+    local transparency = math.clamp(tonumber(options.Transparency) or 0.12, 0, 0.9)
 
     function self:Connect(signal, callback)
+        if self.Destroyed then
+            return nil
+        end
         local connection = signal:Connect(callback)
         table.insert(self.Connections, connection)
         return connection
@@ -121,236 +107,251 @@ function Library:CreateWindow(title, options)
         end
     end
 
+    local gui = make("ScreenGui", {
+        Name = "ExecutorLibrary",
+        DisplayOrder = 9999,
+        ResetOnSpawn = false,
+        IgnoreGuiInset = true,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    }, playerGui)
+    self.Gui = gui
+
     local window = make("Frame", {
         Name = "Window",
-        Position = UDim2.new(0.5, -490, 0.5, -300),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.fromScale(0.5, 0.5),
         Size = UDim2.fromOffset(980, 600),
-        BackgroundColor3 = C.bg,
-        BackgroundTransparency = self.Theme.Transparency,
-        BorderSizePixel = 1,
-        BorderColor3 = C.border,
+        BackgroundColor3 = C.Background,
+        BackgroundTransparency = transparency,
+        BorderSizePixel = 0,
         ClipsDescendants = true
     }, gui)
-    stroke(window, C.border, 0)
+    corner(window, 8)
+    outline(window, C.Border, 1)
     self.Window = window
 
     local topbar = make("Frame", {
-        Size = UDim2.new(1, 0, 0, 49),
-        BackgroundColor3 = C.surface,
-        BackgroundTransparency = 0.18,
-        BorderSizePixel = 0,
-        ZIndex = 2
+        Name = "Topbar",
+        Size = UDim2.new(1, 0, 0, 43),
+        BackgroundColor3 = C.Surface,
+        BackgroundTransparency = 0.05,
+        BorderSizePixel = 0
     }, window)
 
-    make("Frame", {
-        Position = UDim2.new(0, 0, 1, -10),
-        Size = UDim2.new(1, 0, 0, 10),
-        BackgroundColor3 = C.surface,
-        BackgroundTransparency = 0.12,
-        BorderSizePixel = 0,
-        ZIndex = 2
-    }, topbar)
-
-    local heading = label(topbar, title or "Executor", 13, C.text, Enum.Font.Gotham)
-    heading.Position = UDim2.fromOffset(16, 0)
-    heading.Size = UDim2.new(1, -160, 1, 0)
-    heading.ZIndex = 3
+    local heading = label(topbar, title or "Executor", 13, C.Text)
+    heading.Position = UDim2.fromOffset(14, 0)
+    heading.Size = UDim2.new(1, -115, 1, 0)
 
     local close = make("TextButton", {
-        Position = UDim2.new(1, -39, 0, 9),
-        Size = UDim2.fromOffset(29, 29),
-        BackgroundColor3 = C.row,
+        Position = UDim2.new(1, -38, 0, 7),
+        Size = UDim2.fromOffset(28, 28),
+        BackgroundColor3 = C.Row,
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
         Text = "×",
-        TextColor3 = C.text,
-        TextSize = 22,
+        TextColor3 = C.Text,
+        TextSize = 23,
         Font = Enum.Font.Gotham,
-        AutoButtonColor = false,
-        ZIndex = 4
+        AutoButtonColor = false
     }, topbar)
-    corner(close, 8)
+    corner(close, 5)
 
     local minimizeButton = make("TextButton", {
-        Position = UDim2.new(1, -72, 0, 9),
-        Size = UDim2.fromOffset(25, 29),
-        BackgroundColor3 = C.row,
+        Position = UDim2.new(1, -70, 0, 7),
+        Size = UDim2.fromOffset(28, 28),
+        BackgroundColor3 = C.Row,
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
         Text = "−",
-        TextColor3 = C.text,
+        TextColor3 = C.Text,
         TextSize = 21,
         Font = Enum.Font.Gotham,
-        AutoButtonColor = false,
-        ZIndex = 4
+        AutoButtonColor = false
     }, topbar)
+    corner(minimizeButton, 5)
 
     local searchArea = make("Frame", {
-        Position = UDim2.fromOffset(8, 56),
-        Size = UDim2.new(1, -16, 0, 42),
-        BackgroundColor3 = C.surface,
-        BackgroundTransparency = 0.12,
-        BorderSizePixel = 0,
-        ZIndex = 2
+        Position = UDim2.fromOffset(8, 49),
+        Size = UDim2.new(1, -16, 0, 39),
+        BackgroundColor3 = C.Surface,
+        BackgroundTransparency = 0.05,
+        BorderSizePixel = 0
     }, window)
-    corner(searchArea, 8)
-    stroke(searchArea, C.border, 0)
+    corner(searchArea, 6)
+    outline(searchArea, C.Border, 1)
 
     local searchBox = make("TextBox", {
-        Position = UDim2.fromOffset(6, 5),
-        Size = UDim2.new(1, -211, 1, -10),
-        BackgroundColor3 = C.bg,
-        BackgroundTransparency = 0.18,
+        Position = UDim2.fromOffset(5, 5),
+        Size = UDim2.new(1, -213, 1, -10),
+        BackgroundColor3 = C.Background,
+        BackgroundTransparency = 0.08,
         BorderSizePixel = 0,
         ClearTextOnFocus = false,
         Text = "",
         PlaceholderText = "SEARCH FUNCTIONS...",
-        PlaceholderColor3 = C.muted,
-        TextColor3 = C.text,
+        PlaceholderColor3 = C.Muted,
+        TextColor3 = C.Text,
         TextSize = 11,
         Font = Enum.Font.Gotham,
         TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 3
+        TextTruncate = Enum.TextTruncate.AtEnd
     }, searchArea)
-    corner(searchBox, 6)
-    stroke(searchBox, C.border, 0)
+    corner(searchBox, 5)
     make("UIPadding", {
         PaddingLeft = UDim.new(0, 9),
-        PaddingRight = UDim.new(0, 8)
+        PaddingRight = UDim.new(0, 6)
     }, searchBox)
 
     local function actionButton(text, width, right)
         local button = make("TextButton", {
             AnchorPoint = Vector2.new(1, 0.5),
             Position = UDim2.new(1, -right, 0.5, 0),
-            Size = UDim2.fromOffset(width, 28),
-            BackgroundColor3 = C.bg,
-            BackgroundTransparency = 0,
+            Size = UDim2.fromOffset(width, 27),
+            BackgroundColor3 = C.Row,
             BorderSizePixel = 0,
             Text = text,
-            TextColor3 = C.text,
-            TextSize = 10,
+            TextColor3 = C.Text,
+            TextSize = 9,
             Font = Enum.Font.Gotham,
-            AutoButtonColor = false,
-            ZIndex = 3
+            AutoButtonColor = false
         }, searchArea)
-        corner(button, 6)
-        stroke(button, C.border, 0)
+        corner(button, 5)
+        outline(button, C.Border, 1)
+
         self:Connect(button.MouseEnter, function()
-            button.BackgroundColor3 = C.hover
+            button.BackgroundColor3 = C.Hover
         end)
         self:Connect(button.MouseLeave, function()
-            button.BackgroundColor3 = C.bg
+            button.BackgroundColor3 = C.Row
         end)
+
         return button
     end
 
-    local topButton = actionButton("TOP", 52, 5)
-    local collapseButton = actionButton("COLLAPSE", 63, 63)
-    local expandButton = actionButton("EXPAND", 59, 132)
+    local topButton = actionButton("TOP", 44, 5)
+    local collapseButton = actionButton("COLLAPSE", 63, 55)
+    local expandButton = actionButton("EXPAND", 57, 123)
 
     local grid = make("ScrollingFrame", {
         Name = "CategoryGrid",
-        Position = UDim2.fromOffset(8, 105),
-        Size = UDim2.new(1, -16, 1, -113),
+        Position = UDim2.fromOffset(8, 96),
+        Size = UDim2.new(1, -16, 1, -104),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
         ScrollBarThickness = 3,
-        ScrollBarImageColor3 = C.border,
+        ScrollBarImageColor3 = C.Border,
         CanvasSize = UDim2.new(),
         ScrollingDirection = Enum.ScrollingDirection.Y,
-        ZIndex = 1
+        AutomaticCanvasSize = Enum.AutomaticSize.None
     }, window)
     self.Grid = grid
 
     local gridLayout = make("UIGridLayout", {
         CellSize = UDim2.fromOffset(300, 290),
-        CellPadding = UDim2.fromOffset(8, 8),
+        CellPadding = UDim2.fromOffset(7, 7),
         SortOrder = Enum.SortOrder.LayoutOrder,
         HorizontalAlignment = Enum.HorizontalAlignment.Left,
-        VerticalAlignment = Enum.VerticalAlignment.Top
+        VerticalAlignment = Enum.VerticalAlignment.Top,
+        FillDirection = Enum.FillDirection.Horizontal
     }, grid)
 
     local resize = make("TextButton", {
         Name = "ResizeHandle",
         AnchorPoint = Vector2.new(1, 1),
-        Position = UDim2.new(1, -4, 1, -4),
-        Size = UDim2.fromOffset(18, 18),
-        BackgroundColor3 = C.row,
+        Position = UDim2.new(1, -3, 1, -3),
+        Size = UDim2.fromOffset(17, 17),
+        BackgroundColor3 = C.Surface,
+        BackgroundTransparency = 0.15,
         BorderSizePixel = 0,
-        Text = "",
+        Text = "◢",
+        TextColor3 = C.Muted,
+        TextSize = 11,
         AutoButtonColor = false,
         ZIndex = 10
     }, window)
-    resize.BackgroundTransparency = 1
-    resize.Text = ""
+    corner(resize, 3)
 
     local restore = make("TextButton", {
         Name = "RestoreButton",
         AnchorPoint = Vector2.new(0.5, 0.5),
-        Position = UDim2.fromOffset(55, 250),
-        Size = UDim2.fromOffset(43, 43),
-        BackgroundColor3 = C.surface,
-        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(35, 250),
+        Size = UDim2.fromOffset(42, 42),
+        BackgroundColor3 = C.Surface,
         BorderSizePixel = 0,
-        Text = "",
-        TextColor3 = C.text,
-        TextSize = 1,
-        Font = Enum.Font.Gotham,
+        Text = title or "UI",
+        TextColor3 = C.Text,
+        TextSize = 10,
+        Font = Enum.Font.GothamBold,
         AutoButtonColor = false,
         Visible = false,
         ZIndex = 20
     }, gui)
+    corner(restore, 8)
+    outline(restore, C.Border, 1)
 
     local minimized = false
-    local resizing = false
-    local resizeOrigin, resizeSize, resizePosition
     local dragging, dragOrigin, dragPosition
-    local windowPosition, windowSize = window.Position, window.Size
+    local resizing, resizeOrigin, resizeSize, resizePosition
+    local windowPosition = window.Position
+    local windowSize = window.Size
     local restorePosition = restore.Position
     local categoryDrag, categoryDragOrigin
-    local categoryClickPending = false
+    local categoryDragMoved = false
 
     local function updateGrid()
         if self.Destroyed then
             return
         end
+
         local width = grid.AbsoluteSize.X
         if width <= 0 then
             return
         end
-        local gap = 8
+
+        local gap = 7
         local columns = width >= 900 and 3 or (width >= 570 and 2 or 1)
         local cellWidth = math.max(180, math.floor((width - gap * (columns - 1)) / columns))
-        gridLayout.CellSize = UDim2.new(0, cellWidth, 0, 290)
+
+        gridLayout.CellSize = UDim2.fromOffset(cellWidth, 290)
         gridLayout.CellPadding = UDim2.fromOffset(gap, gap)
-        gridLayout.FillDirection = Enum.FillDirection.Horizontal
         gridLayout.FillDirectionMaxCells = columns
-        local visibleCount = 0
+
+        local rows = 0
         for _, category in ipairs(self.Categories) do
             if category.Frame.Visible then
-                visibleCount += 1
+                rows += 1
             end
         end
-        local rows = math.ceil(visibleCount / columns)
-        local estimatedHeight = math.max(0, rows * 298 + 8)
-        grid.CanvasSize = UDim2.fromOffset(0, math.max(estimatedHeight, gridLayout.AbsoluteContentSize.Y + 8))
+
+        rows = math.ceil(rows / columns)
+        grid.CanvasSize = UDim2.fromOffset(
+            0,
+            math.max(0, rows * 297 + 4, gridLayout.AbsoluteContentSize.Y + 4)
+        )
     end
 
     local function refreshSearch()
+        if self.Destroyed then
+            return
+        end
+
         local query = string.lower(self.Search)
+
         for _, category in ipairs(self.Categories) do
             local found = false
+
             for _, item in ipairs(category.Items) do
-                local searchable = string.lower(item.Name .. " " .. tostring(item.Description or ""))
+                local searchable = string.lower(
+                    item.Name .. " " .. tostring(item.Description or "")
+                )
                 local matches = query == "" or string.find(searchable, query, 1, true) ~= nil
                 item.Frame.Visible = matches
-                if matches then
-                    found = true
-                end
+                found = found or matches
             end
+
             category.Frame.Visible = query == "" or found
         end
+
         updateGrid()
         task.defer(updateGrid)
     end
@@ -360,8 +361,6 @@ function Library:CreateWindow(title, options)
         refreshSearch()
     end)
 
-    local selfWindow = self
-
     local function sortCategories()
         table.sort(self.Categories, function(a, b)
             if a.Order == b.Order then
@@ -369,73 +368,77 @@ function Library:CreateWindow(title, options)
             end
             return a.Order < b.Order
         end)
+
         for i, category in ipairs(self.Categories) do
             category.Frame.LayoutOrder = i
         end
+
         updateGrid()
+    end
+
+    local function collapseAll(value)
+        for _, category in ipairs(self.Categories) do
+            category:SetCollapsed(value)
+        end
     end
 
     function self:Category(name, order)
         if self.Destroyed then
-            return
+            return nil
         end
+
         self.CategoryIndex += 1
         local id = self.CategoryIndex
         local categoryName = tostring(name or ("CATEGORY " .. id))
 
         local frame = make("Frame", {
             Name = categoryName,
-            BackgroundColor3 = C.surface,
-            BackgroundTransparency = 0.42,
-            BorderSizePixel = 1,
-            BorderColor3 = C.border,
+            BackgroundColor3 = C.Surface,
+            BackgroundTransparency = 0.05,
+            BorderSizePixel = 0,
             ClipsDescendants = true,
-            LayoutOrder = tonumber(order) or id,
-            ZIndex = 1
+            LayoutOrder = tonumber(order) or id
         }, grid)
-        corner(frame, 8)
-        stroke(frame, C.border, 0)
+        corner(frame, 6)
+        outline(frame, C.Border, 1)
 
         local header = make("TextButton", {
             Position = UDim2.fromOffset(4, 4),
-            Size = UDim2.new(1, -8, 0, 32),
-            BackgroundColor3 = C.bg,
-            BackgroundTransparency = 0.14,
+            Size = UDim2.new(1, -8, 0, 30),
+            BackgroundColor3 = C.Row,
             BorderSizePixel = 0,
             Text = "",
             AutoButtonColor = false,
             ZIndex = 3
         }, frame)
-        corner(header, 6)
-        stroke(header, C.border, 0)
+        corner(header, 5)
 
-        local headerText = label(header, string.upper(categoryName), 10, C.text, Enum.Font.Gotham)
+        local headerText = label(header, string.upper(categoryName), 10, C.Text)
         headerText.Position = UDim2.fromOffset(9, 0)
-        headerText.Size = UDim2.new(1, -32, 1, 0)
+        headerText.Size = UDim2.new(1, -30, 1, 0)
         headerText.ZIndex = 4
 
-        local collapseMark = label(header, "−", 12, C.muted)
+        local collapseMark = label(header, "−", 12, C.Muted)
         collapseMark.AnchorPoint = Vector2.new(1, 0)
-        collapseMark.Position = UDim2.new(1, -8, 0, 0)
-        collapseMark.Size = UDim2.fromOffset(15, 32)
+        collapseMark.Position = UDim2.new(1, -7, 0, 0)
+        collapseMark.Size = UDim2.fromOffset(14, 30)
         collapseMark.TextXAlignment = Enum.TextXAlignment.Center
         collapseMark.ZIndex = 4
 
         local content = make("ScrollingFrame", {
             Name = "Items",
-            Position = UDim2.fromOffset(5, 42),
-            Size = UDim2.new(1, -10, 1, -47),
+            Position = UDim2.fromOffset(4, 39),
+            Size = UDim2.new(1, -8, 1, -43),
             BackgroundTransparency = 1,
             BorderSizePixel = 0,
             ScrollBarThickness = 2,
-            ScrollBarImageColor3 = C.border,
+            ScrollBarImageColor3 = C.Border,
             CanvasSize = UDim2.new(),
-            ScrollingDirection = Enum.ScrollingDirection.Y,
-            ZIndex = 2
+            ScrollingDirection = Enum.ScrollingDirection.Y
         }, frame)
 
         local list = make("UIListLayout", {
-            Padding = UDim.new(0, 5),
+            Padding = UDim.new(0, 4),
             SortOrder = Enum.SortOrder.LayoutOrder
         }, content)
 
@@ -450,114 +453,149 @@ function Library:CreateWindow(title, options)
             Collapsed = false
         }
 
-        local selfWindow = self
-
         local function updateContent()
-            content.CanvasSize = UDim2.fromOffset(0, list.AbsoluteContentSize.Y + 8)
-            task.defer(function()
-                if not selfWindow.Destroyed then
-                    updateGrid()
-                end
-            end)
+            content.CanvasSize = UDim2.fromOffset(0, list.AbsoluteContentSize.Y + 4)
         end
+
         self:Connect(list:GetPropertyChangedSignal("AbsoluteContentSize"), updateContent)
 
         local function newItem(itemName, height)
             local row = make("Frame", {
                 Name = tostring(itemName),
                 Size = UDim2.new(1, -2, 0, height),
-                BackgroundColor3 = C.row,
-                BackgroundTransparency = 0.34,
-                BorderSizePixel = 1,
-                BorderColor3 = C.border,
-                ZIndex = 2
+                BackgroundColor3 = C.Row,
+                BackgroundTransparency = 0,
+                BorderSizePixel = 0,
+                LayoutOrder = #category.Items + 1
             }, content)
-            corner(row, 7)
-            stroke(row, C.border, 0)
-            local item = {Name = tostring(itemName), Frame = row}
+            corner(row, 5)
+            outline(row, C.Border, 1)
+
+            local item = {
+                Name = tostring(itemName),
+                Frame = row,
+                Description = ""
+            }
+
             table.insert(category.Items, item)
             refreshSearch()
+
             return row, item
         end
 
         function category:Button(name, description, callback)
             if type(description) == "function" then
                 callback = description
+                description = nil
             end
-            local row, item = newItem(name, 33)
+
+            local row, item = newItem(name, 32)
+            item.Description = description or ""
+
             local button = make("TextButton", {
                 Size = UDim2.fromScale(1, 1),
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
                 Text = tostring(name),
-                TextColor3 = C.text,
+                TextColor3 = C.Text,
                 TextSize = 11,
                 Font = Enum.Font.Gotham,
-                AutoButtonColor = false,
-                ZIndex = 3
+                AutoButtonColor = false
             }, row)
-            corner(button, 7)
-            selfWindow:Connect(button.MouseEnter, function()
-                row.BackgroundColor3 = C.hover
+            corner(button, 5)
+
+            selfWindow = selfWindow or nil
+            local owner = self
+
+            owner = owner
+
+            local function setHover(active)
+                if not row.Parent then
+                    return
+                end
+                row.BackgroundColor3 = active and C.Hover or C.Row
+            end
+
+            local library = getmetatable(self)
+            local windowLibrary = library
+
+            local ownerWindow = nil
+            for _, connection in ipairs({}) do
+                connection:Disconnect()
+            end
+
+            button.MouseEnter:Connect(function()
+                setHover(true)
             end)
-            selfWindow:Connect(button.MouseLeave, function()
-                row.BackgroundColor3 = C.row
+
+            button.MouseLeave:Connect(function()
+                setHover(false)
             end)
-            selfWindow:Connect(button.MouseButton1Click, function()
-                if not selfWindow.Destroyed and type(callback) == "function" then
+
+            local connection = button.MouseButton1Click:Connect(function()
+                if not category.Destroyed and type(callback) == "function" then
                     task.spawn(callback)
                 end
             end)
+            table.insert(connectionsForItems, connection)
+
             item.Button = button
-            item.Description = description
             return button
         end
 
         function category:Toggle(name, description, callback)
             if type(description) == "function" then
                 callback = description
+                description = nil
             end
-            local row, item = newItem(name, 33)
-            local caption = label(row, name, 11, C.text)
-            caption.Position = UDim2.fromOffset(10, 0)
-            caption.Size = UDim2.new(1, -65, 1, 0)
-            caption.ZIndex = 3
+
+            local row, item = newItem(name, 32)
+            item.Description = description or ""
+
+            local caption = label(row, name, 11, C.Text)
+            caption.Position = UDim2.fromOffset(9, 0)
+            caption.Size = UDim2.new(1, -60, 1, 0)
 
             local switch = make("TextButton", {
                 AnchorPoint = Vector2.new(1, 0.5),
-                Position = UDim2.new(1, -9, 0.5, 0),
-                Size = UDim2.fromOffset(38, 19),
-                BackgroundColor3 = C.bg,
-                BackgroundTransparency = 0.05,
+                Position = UDim2.new(1, -7, 0.5, 0),
+                Size = UDim2.fromOffset(36, 18),
+                BackgroundColor3 = C.Background,
                 BorderSizePixel = 0,
-                BorderColor3 = C.border,
                 Text = "",
-                AutoButtonColor = false,
-                ZIndex = 3
+                AutoButtonColor = false
             }, row)
-            corner(switch, 10)
-            roundedStroke(switch, C.border, 1)
+            corner(switch, 9)
+            outline(switch, C.Border, 1)
 
             local knob = make("Frame", {
                 Position = UDim2.fromOffset(3, 3),
-                Size = UDim2.fromOffset(11, 11),
-                BackgroundColor3 = C.text,
-                BorderSizePixel = 0,
-                ZIndex = 4
+                Size = UDim2.fromOffset(12, 12),
+                BackgroundColor3 = C.Text,
+                BorderSizePixel = 0
             }, switch)
-            corner(knob, 10)
+            corner(knob, 8)
 
             local enabled = false
             local control = {}
 
             function control:Set(value, silent)
+                if category.Destroyed then
+                    return
+                end
+
                 enabled = value == true
+
                 TweenService:Create(switch, TweenInfo.new(0.12), {
-                    BackgroundColor3 = enabled and C.enabled or C.bg
+                    BackgroundColor3 = enabled and C.Accent or C.Background
                 }):Play()
+
                 TweenService:Create(knob, TweenInfo.new(0.12), {
-                    Position = enabled and UDim2.new(1, -14, 0, 3) or UDim2.fromOffset(3, 3)
+                    Position = enabled and UDim2.new(1, -15, 0, 3)
+                        or UDim2.fromOffset(3, 3),
+                    BackgroundColor3 = enabled and C.Background or C.Text
                 }):Play()
+
                 if not silent and type(callback) == "function" then
                     task.spawn(callback, enabled)
                 end
@@ -567,145 +605,144 @@ function Library:CreateWindow(title, options)
                 return enabled
             end
 
-            selfWindow:Connect(switch.MouseButton1Click, function()
+            local connection = switch.MouseButton1Click:Connect(function()
                 control:Set(not enabled)
             end)
-            table.insert(selfWindow.ToggleControls, control)
+            table.insert(connectionsForItems, connection)
+
+            table.insert(toggleControlsForItems, control)
             item.Toggle = control
-            item.Description = description
             return control
         end
 
-        local function createKeybind(name, description, defaultKey, callback, withToggle)
-            local row, item = newItem(name, 39)
-            local caption = label(row, name, 11, C.text, Enum.Font.Gotham)
-            caption.Position = UDim2.fromOffset(10, 0)
-            caption.Size = UDim2.new(1, withToggle and -112 or -100, 1, 0)
-            caption.ZIndex = 3
+        local function createKeybind(name, description, defaultKey, callback, withToggle, stateCallback)
+            local row, item = newItem(name, 37)
+            item.Description = description or ""
 
+            local caption = label(row, name, 11, C.Text)
+            caption.Position = UDim2.fromOffset(9, 0)
+            caption.Size = UDim2.new(1, withToggle and -110 or -85, 1, 0)
+
+            local key = keyCode(defaultKey)
             local enabled = not withToggle
-            local keyCode = defaultKey
-            if type(keyCode) == "string" then
-                keyCode = Enum.KeyCode[keyCode]
-            end
-            if typeof(keyCode) ~= "EnumItem" or keyCode.EnumType ~= Enum.KeyCode then
-                keyCode = Enum.KeyCode.Unknown
-            end
-            local waitingForKey = false
+            local waiting = false
 
             local keyButton = make("TextButton", {
                 AnchorPoint = Vector2.new(1, 0.5),
-                Position = UDim2.new(1, -8, 0.5, 0),
-                Size = UDim2.fromOffset(72, 25),
-                BackgroundColor3 = C.bg,
-                BackgroundTransparency = 0.05,
-                BorderSizePixel = 1,
-                BorderColor3 = C.border,
+                Position = UDim2.new(1, -7, 0.5, 0),
+                Size = UDim2.fromOffset(withToggle and 62 or 70, 24),
+                BackgroundColor3 = C.Background,
+                BorderSizePixel = 0,
                 Text = "",
-                TextColor3 = C.text,
-                TextSize = 10,
+                TextColor3 = C.Text,
+                TextSize = 9,
                 Font = Enum.Font.Gotham,
-                AutoButtonColor = false,
-                ZIndex = 4
+                AutoButtonColor = false
             }, row)
-            local toggleButton, knob
+            corner(keyButton, 4)
+            outline(keyButton, C.Border, 1)
+
+            local toggleButton
             if withToggle then
-                keyButton.Position = UDim2.new(1, -8, 0.5, 0)
-                keyButton.Size = UDim2.fromOffset(65, 25)
                 toggleButton = make("TextButton", {
                     AnchorPoint = Vector2.new(1, 0.5),
-                    Position = UDim2.new(1, -80, 0.5, 0),
-                    Size = UDim2.fromOffset(25, 25),
-                    BackgroundColor3 = C.bg,
-                    BorderSizePixel = 1,
-                    BorderColor3 = C.border,
+                    Position = UDim2.new(1, -74, 0.5, 0),
+                    Size = UDim2.fromOffset(30, 24),
+                    BackgroundColor3 = C.Background,
+                    BorderSizePixel = 0,
                     Text = "OFF",
-                    TextColor3 = C.text,
+                    TextColor3 = C.Text,
                     TextSize = 8,
                     Font = Enum.Font.Gotham,
-                    AutoButtonColor = false,
-                    ZIndex = 4
+                    AutoButtonColor = false
                 }, row)
+                corner(toggleButton, 4)
+                outline(toggleButton, C.Border, 1)
             end
 
             local function refreshKeyText()
-                keyButton.Text = waitingForKey and "PRESS KEY" or (keyCode == Enum.KeyCode.Unknown and "NONE" or keyCode.Name:upper())
+                keyButton.Text = waiting and "PRESS KEY"
+                    or (key == Enum.KeyCode.Unknown and "NONE" or key.Name:upper())
             end
             refreshKeyText()
 
             local control = {}
-            function control:SetKey(key)
-                if type(key) == "string" then key = Enum.KeyCode[key] end
-                if typeof(key) == "EnumItem" and key.EnumType == Enum.KeyCode then
-                    keyCode = key
-                    waitingForKey = false
+
+            function control:SetKey(value)
+                local newKey = keyCode(value)
+                if newKey ~= Enum.KeyCode.Unknown or value == "Unknown" then
+                    key = newKey
+                    waiting = false
                     refreshKeyText()
                 end
             end
+
             function control:GetKey()
-                return keyCode
+                return key
             end
+
             function control:Set(value, silent)
                 enabled = value == true
+
                 if toggleButton then
                     toggleButton.Text = enabled and "ON" or "OFF"
-                    toggleButton.BackgroundColor3 = enabled and C.text or C.bg
-                    toggleButton.TextColor3 = enabled and C.bg or C.text
+                    toggleButton.BackgroundColor3 = enabled and C.Text or C.Background
+                    toggleButton.TextColor3 = enabled and C.Background or C.Text
                 end
-                if not silent and withToggle and type(item.StateCallback) == "function" then
-                    task.spawn(item.StateCallback, enabled)
+
+                if not silent and withToggle and type(stateCallback) == "function" then
+                    task.spawn(stateCallback, enabled)
                 end
             end
+
             function control:Get()
                 return enabled
             end
 
-            selfWindow:Connect(keyButton.MouseButton1Click, function()
-                waitingForKey = true
+            local connection = keyButton.MouseButton1Click:Connect(function()
+                waiting = true
                 keyButton.Text = "PRESS KEY"
             end)
+            table.insert(connectionsForItems, connection)
+
             if toggleButton then
-                selfWindow:Connect(toggleButton.MouseButton1Click, function()
+                local toggleConnection = toggleButton.MouseButton1Click:Connect(function()
                     control:Set(not enabled)
                 end)
+                table.insert(connectionsForItems, toggleConnection)
             end
-            selfWindow:Connect(UIS.InputBegan, function(input, processed)
-                if selfWindow.Destroyed then return end
-                if waitingForKey then
+
+            local inputConnection = UIS.InputBegan:Connect(function(input, processed)
+                if waiting then
                     if input.KeyCode == Enum.KeyCode.Escape then
-                        keyCode = Enum.KeyCode.Unknown
+                        key = Enum.KeyCode.Unknown
                     elseif input.KeyCode ~= Enum.KeyCode.Unknown then
-                        keyCode = input.KeyCode
+                        key = input.KeyCode
                     end
-                    waitingForKey = false
+
+                    waiting = false
                     refreshKeyText()
                     return
                 end
-                if processed or UIS:GetFocusedTextBox() then return end
-                if keyCode ~= Enum.KeyCode.Unknown and input.KeyCode == keyCode and enabled then
+
+                if processed or UIS:GetFocusedTextBox() then
+                    return
+                end
+
+                if enabled and key ~= Enum.KeyCode.Unknown and input.KeyCode == key then
                     if type(callback) == "function" then
                         task.spawn(callback, control)
                     end
                 end
             end)
+            table.insert(connectionsForItems, inputConnection)
+
             item.Keybind = control
-            item.Description = description
             return control
         end
 
-        local function isKeyCode(value)
-            if typeof(value) == "EnumItem" then
-                return value.EnumType == Enum.KeyCode
-            end
-            if type(value) == "string" then
-                local ok, result = pcall(function() return Enum.KeyCode[value] end)
-                return ok and result ~= nil
-            end
-            return false
-        end
-
         function category:Keybind(name, description, defaultKey, callback)
-            if isKeyCode(description) then
+            if keyCode(description) ~= Enum.KeyCode.Unknown then
                 callback = defaultKey
                 defaultKey = description
                 description = nil
@@ -713,83 +750,82 @@ function Library:CreateWindow(title, options)
                 callback = defaultKey
                 defaultKey = Enum.KeyCode.Unknown
             end
+
             return createKeybind(name, description, defaultKey, callback, false)
         end
 
         function category:ToggleKeybind(name, description, defaultKey, callback, stateCallback)
-            if isKeyCode(description) then
+            if keyCode(description) ~= Enum.KeyCode.Unknown then
                 stateCallback = callback
                 callback = defaultKey
                 defaultKey = description
                 description = nil
             end
-            local control = createKeybind(name, description, defaultKey, callback, true)
-            local item = category.Items[#category.Items]
-            item.StateCallback = stateCallback
-            return control
+
+            return createKeybind(name, description, defaultKey, callback, true, stateCallback)
         end
 
         function category:Slider(name, description, minimum, maximum, default, callback)
             minimum = tonumber(minimum) or 0
             maximum = tonumber(maximum) or 100
+            if maximum < minimum then
+                minimum, maximum = maximum, minimum
+            end
+
             default = math.clamp(tonumber(default) or minimum, minimum, maximum)
 
-            local row, item = newItem(name, 60)
-            local caption = label(row, name, 11, C.text)
-            caption.Position = UDim2.fromOffset(10, 2)
-            caption.Size = UDim2.new(1, -55, 0, 21)
-            caption.ZIndex = 3
+            local row, item = newItem(name, 56)
+            item.Description = description or ""
 
-            local valueLabel = label(row, default, 9, C.text)
+            local caption = label(row, name, 11, C.Text)
+            caption.Position = UDim2.fromOffset(9, 1)
+            caption.Size = UDim2.new(1, -50, 0, 21)
+
+            local valueLabel = label(row, default, 10, C.Text)
             valueLabel.AnchorPoint = Vector2.new(1, 0)
-            valueLabel.Position = UDim2.new(1, -10, 0, 2)
-            valueLabel.Size = UDim2.fromOffset(35, 21)
+            valueLabel.Position = UDim2.new(1, -9, 0, 1)
+            valueLabel.Size = UDim2.fromOffset(40, 21)
             valueLabel.TextXAlignment = Enum.TextXAlignment.Right
-            valueLabel.ZIndex = 3
 
             local bar = make("TextButton", {
-                Position = UDim2.new(0, 10, 0, 37),
-                Size = UDim2.new(1, -20, 0, 8),
-                BackgroundColor3 = C.bg,
-                BackgroundTransparency = 0.05,
+                Position = UDim2.new(0, 9, 0, 35),
+                Size = UDim2.new(1, -18, 0, 7),
+                BackgroundColor3 = C.Background,
                 BorderSizePixel = 0,
-                BorderColor3 = C.border,
                 Text = "",
-                AutoButtonColor = false,
-                ZIndex = 3
+                AutoButtonColor = false
             }, row)
             corner(bar, 4)
-            roundedStroke(bar, C.border, 1)
+            outline(bar, C.Border, 1)
 
             local fill = make("Frame", {
                 Size = UDim2.new(0, 0, 1, 0),
-                BackgroundColor3 = C.accent,
-                BorderSizePixel = 0,
-                ZIndex = 4
+                BackgroundColor3 = C.Accent,
+                BorderSizePixel = 0
             }, bar)
             corner(fill, 4)
 
             local knob = make("Frame", {
                 AnchorPoint = Vector2.new(0.5, 0.5),
                 Position = UDim2.new(0, 0, 0.5, 0),
-                Size = UDim2.fromOffset(13, 15),
-                BackgroundColor3 = C.text,
-                BorderSizePixel = 1,
-                BorderColor3 = C.bg,
-                ZIndex = 5
+                Size = UDim2.fromOffset(12, 14),
+                BackgroundColor3 = C.Text,
+                BorderSizePixel = 0
             }, bar)
-            corner(knob, 6)
+            corner(knob, 5)
 
             local value = default
-            local draggingSlider = false
+            local sliding = false
             local control = {}
 
             local function setValue(newValue, fire)
                 value = math.clamp(math.floor(newValue + 0.5), minimum, maximum)
                 local alpha = (value - minimum) / math.max(maximum - minimum, 1)
+
                 fill.Size = UDim2.new(alpha, 0, 1, 0)
                 knob.Position = UDim2.new(alpha, 0, 0.5, 0)
                 valueLabel.Text = tostring(value)
+
                 if fire and type(callback) == "function" then
                     task.spawn(callback, value)
                 end
@@ -797,38 +833,43 @@ function Library:CreateWindow(title, options)
 
             local function updateFromInput(input)
                 local alpha = math.clamp(
-                    (input.Position.X - bar.AbsolutePosition.X) / math.max(bar.AbsoluteSize.X, 1),
-                    0, 1
+                    (input.Position.X - bar.AbsolutePosition.X)
+                        / math.max(bar.AbsoluteSize.X, 1),
+                    0,
+                    1
                 )
                 setValue(minimum + (maximum - minimum) * alpha, true)
             end
 
-            selfWindow:Connect(bar.InputBegan, function(input)
+            local beginConnection = bar.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1
                     or input.UserInputType == Enum.UserInputType.Touch then
-                    draggingSlider = true
+                    sliding = true
                     updateFromInput(input)
                 end
             end)
+            table.insert(connectionsForItems, beginConnection)
 
-            selfWindow:Connect(UIS.InputChanged, function(input)
-                if draggingSlider and (
+            local changeConnection = UIS.InputChanged:Connect(function(input)
+                if sliding and (
                     input.UserInputType == Enum.UserInputType.MouseMovement
                     or input.UserInputType == Enum.UserInputType.Touch
                 ) then
                     updateFromInput(input)
                 end
             end)
+            table.insert(connectionsForItems, changeConnection)
 
-            selfWindow:Connect(UIS.InputEnded, function(input)
+            local endConnection = UIS.InputEnded:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1
                     or input.UserInputType == Enum.UserInputType.Touch then
-                    draggingSlider = false
+                    sliding = false
                 end
             end)
+            table.insert(connectionsForItems, endConnection)
 
             function control:Set(newValue)
-                setValue(newValue, true)
+                setValue(tonumber(newValue) or minimum, true)
             end
 
             function control:Get()
@@ -837,7 +878,6 @@ function Library:CreateWindow(title, options)
 
             setValue(default, false)
             item.Slider = control
-            item.Description = description
             return control
         end
 
@@ -851,68 +891,38 @@ function Library:CreateWindow(title, options)
             content.Visible = not category.Collapsed
             collapseMark.Text = category.Collapsed and "+" or "−"
             content.Size = category.Collapsed
-                and UDim2.new(1, -10, 0, 0)
-                or UDim2.new(1, -10, 1, -47)
-            frame.BackgroundTransparency = category.Collapsed and 1 or 0.42
+                and UDim2.new(1, -8, 0, 0)
+                or UDim2.new(1, -8, 1, -43)
+            frame.BackgroundTransparency = category.Collapsed and 1 or 0.05
             updateGrid()
         end
 
-        selfWindow:Connect(header.MouseButton1Click, function()
-            if not categoryClickPending then
+        self:Connect(header.MouseButton1Click, function()
+            if not categoryDragMoved then
                 category:SetCollapsed(not category.Collapsed)
             end
         end)
 
-        selfWindow:Connect(header.InputBegan, function(input)
+        self:Connect(header.InputBegan, function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 then
                 categoryDrag = category
                 categoryDragOrigin = input.Position
-                categoryClickPending = false
+                categoryDragMoved = false
             end
-        end)
-
-        selfWindow:Connect(UIS.InputEnded, function(input)
-            if input.UserInputType ~= Enum.UserInputType.MouseButton1 or not categoryDrag then
-                return
-            end
-            local dragged = categoryDrag
-            categoryDrag = nil
-            if not categoryDragOrigin or (input.Position - categoryDragOrigin).Magnitude < 10 then
-                categoryDragOrigin = nil
-                return
-            end
-
-            categoryClickPending = true
-            local nearest, nearestDistance
-            for _, other in ipairs(selfWindow.Categories) do
-                if other ~= dragged and other.Frame.Visible then
-                    local center = other.Frame.AbsolutePosition + other.Frame.AbsoluteSize / 2
-                    local distance = (center - input.Position).Magnitude
-                    if not nearestDistance or distance < nearestDistance then
-                        nearest, nearestDistance = other, distance
-                    end
-                end
-            end
-            if nearest then
-                dragged.Order, nearest.Order = nearest.Order, dragged.Order
-                sortCategories()
-            end
-            task.defer(function()
-                categoryClickPending = false
-            end)
-            categoryDragOrigin = nil
         end)
 
         table.insert(self.Categories, category)
         self.CurrentCategory = category
         sortCategories()
         refreshSearch()
+
         task.defer(function()
             if not self.Destroyed then
+                updateContent()
                 updateGrid()
-                refreshSearch()
             end
         end)
+
         return category
     end
 
@@ -931,20 +941,28 @@ function Library:CreateWindow(title, options)
     end
 
     function self:Keybind(name, description, defaultKey, callback)
-        if not self.CurrentCategory then self:Category("GENERAL") end
+        if not self.CurrentCategory then
+            self:Category("GENERAL")
+        end
         return self.CurrentCategory:Keybind(name, description, defaultKey, callback)
     end
 
     function self:ToggleKeybind(name, description, defaultKey, callback, stateCallback)
-        if not self.CurrentCategory then self:Category("GENERAL") end
-        return self.CurrentCategory:ToggleKeybind(name, description, defaultKey, callback, stateCallback)
+        if not self.CurrentCategory then
+            self:Category("GENERAL")
+        end
+        return self.CurrentCategory:ToggleKeybind(
+            name, description, defaultKey, callback, stateCallback
+        )
     end
 
     function self:Slider(name, description, minimum, maximum, default, callback)
         if not self.CurrentCategory then
             self:Category("GENERAL")
         end
-        return self.CurrentCategory:Slider(name, description, minimum, maximum, default, callback)
+        return self.CurrentCategory:Slider(
+            name, description, minimum, maximum, default, callback
+        )
     end
 
     function self:CategoryOrder(names)
@@ -958,18 +976,14 @@ function Library:CreateWindow(title, options)
         sortCategories()
     end
 
-    local function collapseAll(value)
-        for _, category in ipairs(self.Categories) do
-            category:SetCollapsed(value)
-        end
-    end
-
     self:Connect(collapseButton.MouseButton1Click, function()
         collapseAll(true)
     end)
+
     self:Connect(expandButton.MouseButton1Click, function()
         collapseAll(false)
     end)
+
     self:Connect(topButton.MouseButton1Click, function()
         grid.CanvasPosition = Vector2.zero
     end)
@@ -978,15 +992,17 @@ function Library:CreateWindow(title, options)
         if self.Destroyed or minimized then
             return
         end
+
         windowPosition = window.Position
         windowSize = window.Size
-        restorePosition = UDim2.fromOffset(
-            window.AbsolutePosition.X + window.AbsoluteSize.X - 28,
-            window.AbsolutePosition.Y + 28
+
+        restore.Position = UDim2.fromOffset(
+            window.AbsolutePosition.X + window.AbsoluteSize.X - 25,
+            window.AbsolutePosition.Y + 25
         )
+
         minimized = true
         window.Visible = false
-        restore.Position = restorePosition
         restore.Visible = true
     end
 
@@ -994,6 +1010,7 @@ function Library:CreateWindow(title, options)
         if self.Destroyed then
             return
         end
+
         minimized = false
         restore.Visible = false
         window.Visible = true
@@ -1003,6 +1020,7 @@ function Library:CreateWindow(title, options)
 
     self:Connect(restore.MouseButton1Click, showWindow)
     self:Connect(minimizeButton.MouseButton1Click, hideWindow)
+
     self:Connect(close.MouseButton1Click, function()
         self:Destroy()
     end)
@@ -1033,40 +1051,6 @@ function Library:CreateWindow(title, options)
         end
     end)
 
-    self:Connect(UIS.InputChanged, function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = input.Position - dragOrigin
-            local pos = UDim2.fromOffset(
-                dragPosition.X.Offset + delta.X,
-                dragPosition.Y.Offset + delta.Y
-            )
-            dragging.Position = pos
-            if dragging == window then
-                windowPosition = pos
-            else
-                restorePosition = pos
-            end
-        end
-
-        if resizing and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = input.Position - resizeOrigin
-            local width = math.clamp(resizeSize.X + delta.X, 600, 1600)
-            local height = math.clamp(resizeSize.Y + delta.Y, 400, 1100)
-            window.Size = UDim2.fromOffset(width, height)
-            window.Position = resizePosition
-            windowPosition = resizePosition
-            windowSize = window.Size
-            updateGrid()
-        end
-    end)
-
-    self:Connect(UIS.InputEnded, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = nil
-            resizing = false
-        end
-    end)
-
     self:Connect(resize.InputBegan, function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             resizing = true
@@ -1076,18 +1060,116 @@ function Library:CreateWindow(title, options)
         end
     end)
 
+    self:Connect(UIS.InputChanged, function(input)
+        if input.UserInputType ~= Enum.UserInputType.MouseMovement then
+            return
+        end
+
+        if categoryDrag and categoryDragOrigin then
+            local delta = input.Position - categoryDragOrigin
+            if delta.Magnitude >= 10 then
+                categoryDragMoved = true
+            end
+        end
+
+        if dragging and dragOrigin then
+            local delta = input.Position - dragOrigin
+            local pos = UDim2.fromOffset(
+                dragPosition.X.Offset + delta.X,
+                dragPosition.Y.Offset + delta.Y
+            )
+            dragging.Position = pos
+
+            if dragging == window then
+                windowPosition = pos
+            else
+                restorePosition = pos
+            end
+        end
+
+        if resizing and resizeOrigin then
+            local delta = input.Position - resizeOrigin
+            local camera = workspace.CurrentCamera
+            local viewport = camera and camera.ViewportSize or Vector2.new(1920, 1080)
+            local width = math.clamp(resizeSize.X + delta.X, 600, math.max(600, viewport.X))
+            local height = math.clamp(resizeSize.Y + delta.Y, 400, math.max(400, viewport.Y))
+
+            window.Size = UDim2.fromOffset(width, height)
+            window.Position = resizePosition
+            windowPosition = resizePosition
+            windowSize = window.Size
+            updateGrid()
+        end
+    end)
+
+    self:Connect(UIS.InputEnded, function(input)
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+            return
+        end
+
+        dragging = nil
+        resizing = false
+
+        if categoryDrag then
+            local dragged = categoryDrag
+            categoryDrag = nil
+
+            if categoryDragMoved then
+                local nearest, nearestDistance
+
+                for _, other in ipairs(self.Categories) do
+                    if other ~= dragged and other.Frame.Visible then
+                        local center = other.Frame.AbsolutePosition
+                            + other.Frame.AbsoluteSize / 2
+                        local distance = (center - input.Position).Magnitude
+
+                        if not nearestDistance or distance < nearestDistance then
+                            nearest = other
+                            nearestDistance = distance
+                        end
+                    end
+                end
+
+                if nearest and nearestDistance and nearestDistance < 180 then
+                    dragged.Order, nearest.Order = nearest.Order, dragged.Order
+                    sortCategories()
+                end
+            end
+
+            task.defer(function()
+                categoryDragMoved = false
+            end)
+        end
+    end)
+
     self:Connect(grid:GetPropertyChangedSignal("AbsoluteSize"), updateGrid)
     self:Connect(window:GetPropertyChangedSignal("AbsoluteSize"), updateGrid)
+
+    self:Connect(minimizeButton.MouseEnter, function()
+        minimizeButton.BackgroundTransparency = 0.15
+    end)
+    self:Connect(minimizeButton.MouseLeave, function()
+        minimizeButton.BackgroundTransparency = 1
+    end)
+    self:Connect(close.MouseEnter, function()
+        close.BackgroundTransparency = 0.1
+        close.BackgroundColor3 = C.Hover
+    end)
+    self:Connect(close.MouseLeave, function()
+        close.BackgroundTransparency = 1
+        close.BackgroundColor3 = C.Row
+    end)
 
     function self:Destroy()
         if self.Destroyed then
             return
         end
+
         self.Destroyed = true
 
         for _, control in ipairs(self.ToggleControls) do
             pcall(function()
-                control:Set(false)
+                control:Set(false, true)
             end)
         end
 
@@ -1101,43 +1183,39 @@ function Library:CreateWindow(title, options)
             end)
         end
 
+        for _, connection in ipairs(connectionsForItems) do
+            pcall(function()
+                connection:Disconnect()
+            end)
+        end
+
         table.clear(self.Connections)
         table.clear(self.CleanupCallbacks)
         table.clear(self.ToggleControls)
-        gui:Destroy()
-    end
+        table.clear(self.Categories)
 
-    self:Connect(minimizeButton.MouseEnter, function()
-        minimizeButton.BackgroundTransparency = 0.15
-    end)
-    self:Connect(minimizeButton.MouseLeave, function()
-        minimizeButton.BackgroundTransparency = 1
-    end)
-    self:Connect(close.MouseEnter, function()
-        close.BackgroundTransparency = 0.15
-        close.BackgroundColor3 = C.hover
-        close.TextColor3 = C.text
-    end)
-    self:Connect(close.MouseLeave, function()
-        close.BackgroundTransparency = 1
-        close.BackgroundColor3 = C.row
-        close.TextColor3 = C.text
-    end)
+        if gui and gui.Parent then
+            gui:Destroy()
+        end
+    end
 
     task.defer(function()
         if self.Destroyed then
             return
         end
+
         local camera = workspace.CurrentCamera
         if camera then
             local viewport = camera.ViewportSize
-            local width, height = window.AbsoluteSize.X, window.AbsoluteSize.Y
-            window.Position = UDim2.fromOffset(
-                math.max(0, (viewport.X - width) / 2),
-                math.max(0, (viewport.Y - height) / 2)
-            )
+            local width = math.min(window.AbsoluteSize.X, viewport.X)
+            local height = math.min(window.AbsoluteSize.Y, viewport.Y)
+
+            window.Size = UDim2.fromOffset(width, height)
+            window.Position = UDim2.fromOffset(viewport.X / 2, viewport.Y / 2)
             windowPosition = window.Position
+            windowSize = window.Size
         end
+
         updateGrid()
     end)
 
