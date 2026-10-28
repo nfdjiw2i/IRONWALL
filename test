@@ -1,1 +1,2089 @@
-print(1)
+можешь создать локал скрипт создающий удобное меню скрываемое по нажатию alt, оно будет мульти ассистентом, позволяет просматривать обьекты как в explorer, содержит свой RemoteSpy и Script Viewer показывающий содержимое скриптов которых можно показать, код который у меня есть
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SoundService = game:GetService("SoundService")
+local StarterGui = game:GetService("StarterGui")
+local StarterPack = game:GetService("StarterPack")
+local StarterPlayer = game:GetService("StarterPlayer")
+
+local player = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
+
+for _, oldName in ipairs({"RiftExplorer", "TerminalExplorerGUI"}) do
+    local oldGui = CoreGui:FindFirstChild(oldName)
+    if oldGui then
+        oldGui:Destroy()
+    end
+end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "RiftExplorer"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+gui.Parent = CoreGui
+
+local effectObjects = {}
+
+local UI = {}
+
+local C = {
+    bg = Color3.fromRGB(2, 2, 2),
+    surface = Color3.fromRGB(5, 5, 5),
+    panel = Color3.fromRGB(9, 9, 9),
+    panel2 = Color3.fromRGB(13, 13, 13),
+    panel3 = Color3.fromRGB(19, 19, 19),
+    silver = Color3.fromRGB(175, 175, 175),
+    hover = Color3.fromRGB(27, 27, 27),
+    line = Color3.fromRGB(52, 52, 52),
+    line2 = Color3.fromRGB(105, 105, 105),
+    white = Color3.fromRGB(255, 255, 255),
+    text = Color3.fromRGB(225, 225, 225),
+    muted = Color3.fromRGB(155, 155, 155),
+    soft = Color3.fromRGB(92, 92, 92),
+    black = Color3.fromRGB(0, 0, 0)
+}
+
+local function corner(parent, radius)
+    return nil
+end
+
+local function stroke(parent, color, thickness, transparency)
+    local x = Instance.new("UIStroke")
+    x.Color = color or C.line
+    x.Thickness = thickness or 1
+    x.Transparency = transparency or 0
+    x.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    x.Parent = parent
+    return x
+end
+
+local function tween(obj, time, props)
+    TweenService:Create(obj, TweenInfo.new(time, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), props):Play()
+end
+
+local function text(parent, value, size, position, color, font)
+    local x = Instance.new("TextLabel")
+    x.BackgroundTransparency = 1
+    x.Size = size
+    x.Position = position or UDim2.new()
+    x.Text = value
+    x.TextColor3 = color or C.text
+    x.TextSize = 12
+    x.Font = font or Enum.Font.Code
+    x.TextXAlignment = Enum.TextXAlignment.Left
+    x.TextYAlignment = Enum.TextYAlignment.Center
+    x.Parent = parent
+    return x
+end
+
+local function button(parent, value, size, position)
+    local x = Instance.new("TextButton")
+    x.Size = size
+    x.Position = position or UDim2.new()
+    x.BackgroundColor3 = C.panel2
+    x.BackgroundTransparency = 0.06
+    x.BorderSizePixel = 0
+    x.AutoButtonColor = false
+    x.Text = value
+    x.TextColor3 = C.text
+    x.TextSize = 12
+    x.Font = Enum.Font.Code
+    x.Parent = parent
+    x.ZIndex = 60
+    x.TextSize = 12
+    corner(x, 7)
+    stroke(x, C.line2, 1, 0.05)
+    x.ClipsDescendants = true
+    local sweep = Instance.new("Frame")
+    sweep.Size = UDim2.new(0, 58, 1, 0)
+    sweep.Position = UDim2.new(0, -70, 0, 0)
+    sweep.BackgroundColor3 = C.white
+    sweep.BackgroundTransparency = 0.94
+    sweep.BorderSizePixel = 0
+    sweep.ZIndex = x.ZIndex - 1
+    sweep.Parent = x
+    local sg = Instance.new("UIGradient")
+    sg.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,1),NumberSequenceKeypoint.new(0.5,0.15),NumberSequenceKeypoint.new(1,1)})
+    sg.Parent = sweep
+    x.MouseEnter:Connect(function()
+        tween(x, 0.12, {BackgroundColor3 = C.hover, TextColor3 = C.white})
+    end)
+    x.MouseLeave:Connect(function()
+        tween(x, 0.12, {BackgroundColor3 = C.panel2, TextColor3 = C.text})
+    end)
+    return x
+end
+
+local function input(parent, placeholder, size, position)
+    local x = Instance.new("TextBox")
+    x.Size = size
+    x.Position = position or UDim2.new()
+    x.BackgroundColor3 = C.surface
+    x.BackgroundTransparency = 0.04
+    x.BorderSizePixel = 0
+    x.PlaceholderText = placeholder
+    x.PlaceholderColor3 = C.soft
+    x.TextColor3 = C.white
+    x.TextSize = 12
+    x.Font = Enum.Font.Code
+    x.ZIndex = 50
+    x.ClearTextOnFocus = false
+    x.Text = ""
+    x.TextXAlignment = Enum.TextXAlignment.Left
+    x.Parent = parent
+    corner(x, 7)
+    stroke(x, C.line, 1, 0.18)
+    return x
+end
+
+local function circle(parent, size, position, transparency)
+    local x = Instance.new("Frame")
+    x.Size = UDim2.new(0, size, 0, size)
+    x.Position = position
+    x.BackgroundTransparency = 1
+    x.BorderSizePixel = 0
+    x.ZIndex = 3
+    x.Parent = parent
+    local st = Instance.new("UIStroke")
+    st.Color = C.line2
+    st.Thickness = 1
+    st.Transparency = transparency or 0.78
+    st.Parent = x
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(1,0)
+    c.Parent = x
+    return x
+end
+
+local function divider(parent, position, size)
+    local x = Instance.new("Frame")
+    x.Position = position
+    x.Size = size
+    x.BackgroundColor3 = C.line
+    x.BackgroundTransparency = 0.35
+    x.BorderSizePixel = 0
+    x.Parent = parent
+    return x
+end
+
+UI.main = Instance.new("Frame")
+UI.main.Name = "Main"
+local viewport = workspace.CurrentCamera.ViewportSize
+UI.MAIN_W = math.min(1120, viewport.X - 24)
+UI.MAIN_H = math.min(680, viewport.Y - 24)
+UI.main.Size = UDim2.new(0, UI.MAIN_W, 0, UI.MAIN_H)
+UI.main.Position = UDim2.new(0.5, -UI.MAIN_W / 2, 0.5, -UI.MAIN_H / 2)
+UI.main.BackgroundColor3 = C.bg
+UI.main.BackgroundTransparency = 0.03
+UI.main.BorderSizePixel = 0
+UI.main.Active = true
+UI.main.ClipsDescendants = true
+UI.main.Parent = gui
+UI.main.Visible = false
+corner(UI.main, 13)
+stroke(UI.main, Color3.fromRGB(105, 105, 105), 1, 0.45)
+
+UI.launcher = Instance.new("Frame")
+UI.launcher.Name = "CoolkidLauncher"
+UI.launcher.Size = UDim2.new(0, math.min(560, viewport.X - 40), 0, math.min(320, viewport.Y - 40))
+UI.launcher.Position = UDim2.new(0.5, -UI.launcher.Size.X.Offset / 2, 0.5, -UI.launcher.Size.Y.Offset / 2)
+UI.launcher.BackgroundColor3 = C.bg
+UI.launcher.BackgroundTransparency = 0.02
+UI.launcher.BorderSizePixel = 0
+UI.launcher.ClipsDescendants = true
+UI.launcher.Active = true
+UI.launcher.Parent = gui
+stroke(UI.launcher, Color3.fromRGB(125, 125, 125), 1, 0.08)
+
+UI.launcherGrid = Instance.new("Frame")
+UI.launcherGrid.Size = UDim2.new(1, 0, 1, 0)
+UI.launcherGrid.BackgroundTransparency = 1
+UI.launcherGrid.BorderSizePixel = 0
+UI.launcherGrid.ZIndex = 1
+UI.launcherGrid.Parent = UI.launcher
+
+UI.gridV = Instance.new("Frame")
+UI.gridV.Size = UDim2.new(0, 1, 1, 0)
+UI.gridV.Position = UDim2.new(0.18, 0, 0, 0)
+UI.gridV.BackgroundColor3 = C.line
+UI.gridV.BackgroundTransparency = 0.86
+UI.gridV.BorderSizePixel = 0
+UI.gridV.Parent = UI.launcherGrid
+UI.gridV2 = UI.gridV:Clone()
+UI.gridV2.Position = UDim2.new(0.82, 0, 0, 0)
+UI.gridV2.Parent = UI.launcherGrid
+UI.gridH = Instance.new("Frame")
+UI.gridH.Size = UDim2.new(1, 0, 0, 1)
+UI.gridH.Position = UDim2.new(0, 0, 0.72, 0)
+UI.gridH.BackgroundColor3 = C.line
+UI.gridH.BackgroundTransparency = 0.86
+UI.gridH.BorderSizePixel = 0
+UI.gridH.Parent = UI.launcherGrid
+
+UI.launchCircle = circle(UI.launcher, 150, UDim2.new(0.5, -75, 0.5, -92), 0.9)
+UI.launchCircle.ZIndex = 1
+
+UI.lTitle = text(UI.launcher, "WELCOME // USURE INSTANCE", UDim2.new(1, -40, 0, 28), UDim2.new(0, 20, 0, 22), C.white, Enum.Font.Code)
+UI.lTitle.TextSize = 16
+UI.lTitle.ZIndex = 10
+UI.lSub = text(UI.launcher, "RIFT INSTANCE EXPLORER  |  INITIALIZED", UDim2.new(1, -40, 0, 18), UDim2.new(0, 20, 0, 50), C.silver, Enum.Font.Code)
+UI.lSub.ZIndex = 10
+UI.lWelcome = text(UI.launcher, "Welcome, " .. player.DisplayName .. " (@" .. player.Name .. "). This welcome screen appears once.", UDim2.new(1, -40, 0, 34), UDim2.new(0, 20, 0, 79), C.muted, Enum.Font.Code)
+UI.lWelcome.TextWrapped = true
+UI.lWelcome.ZIndex = 10
+UI.lStatus = text(UI.launcher, "STATUS: READY", UDim2.new(0, 180, 0, 16), UDim2.new(0, 20, 1, -34), C.muted, Enum.Font.Code)
+UI.lStatus.ZIndex = 10
+
+UI.openExplorer = button(UI.launcher, "[ ENTER USURE INSTANCE ]", UDim2.new(0, 250, 0, 42), UDim2.new(0.5, -125, 0.5, 18))
+UI.openExplorer.TextSize = 13
+UI.openExplorer.ZIndex = 10
+
+UI.launcherHint = text(UI.launcher, "RIFT INSTANCE EXPLORER", UDim2.new(1, -40, 0, 16), UDim2.new(0, 20, 1, -52), C.soft, Enum.Font.Code)
+UI.launcherHint.TextXAlignment = Enum.TextXAlignment.Right
+UI.launcherHint.ZIndex = 10
+
+UI.moduleMenu = Instance.new("Frame")
+UI.moduleMenu.Name = "ModuleMenu"
+UI.moduleMenu.Size = UDim2.new(0, math.min(820, viewport.X - 40), 0, math.min(440, viewport.Y - 40))
+UI.moduleMenu.Position = UDim2.new(0.5, -UI.moduleMenu.Size.X.Offset / 2, 0.5, -UI.moduleMenu.Size.Y.Offset / 2)
+UI.moduleMenu.BackgroundColor3 = C.bg
+UI.moduleMenu.BackgroundTransparency = 0.02
+UI.moduleMenu.BorderSizePixel = 0
+UI.moduleMenu.ClipsDescendants = true
+UI.moduleMenu.Active = true
+UI.moduleMenu.Visible = false
+UI.moduleMenu.Parent = gui
+stroke(UI.moduleMenu, Color3.fromRGB(125, 125, 125), 1, 0.08)
+
+UI.mmTitle = text(UI.moduleMenu, "USURE INSTANCE", UDim2.new(1, -40, 0, 28), UDim2.new(0, 20, 0, 20), C.white, Enum.Font.Code)
+UI.mmTitle.TextSize = 18
+UI.mmSub = text(UI.moduleMenu, "MODULE SELECTOR  //  LOCAL DEVELOPER TOOLSET", UDim2.new(1, -40, 0, 18), UDim2.new(0, 20, 0, 50), C.silver, Enum.Font.Code)
+
+local function moduleCard(parent, titleText, subtitleText, x, y, w)
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(0, w, 0, 190)
+    card.Position = UDim2.new(0, x, 0, y)
+    card.BackgroundColor3 = C.panel
+    card.BorderSizePixel = 0
+    card.Parent = parent
+    stroke(card, C.line2, 1, 0.12)
+    text(card, titleText, UDim2.new(1, -24, 0, 24), UDim2.new(0, 12, 0, 12), C.white, Enum.Font.Code)
+    local sub = text(card, subtitleText, UDim2.new(1, -24, 0, 44), UDim2.new(0, 12, 0, 44), C.muted, Enum.Font.Code)
+    sub.TextWrapped = true
+    local b = button(card, "[ OPEN ]", UDim2.new(1, -24, 0, 34), UDim2.new(0, 12, 1, -46))
+    return card, b
+end
+
+local explorerCard, moduleExplorer = moduleCard(UI.moduleMenu, "01  //  EXPLORER", "Instance hierarchy, services, properties and developer inspection.", 20, 90, 248)
+local universeCard, moduleUniverse = moduleCard(UI.moduleMenu, "02  //  UNIVERSE VIEWER", "Place metadata, IDs and known-place/server join tools.", 286, 90, 248)
+local remoteCard, moduleRemote = moduleCard(UI.moduleMenu, "03  //  REMOTE BROWSER", "Read-only RemoteEvent / RemoteFunction browser.", 552, 90, 248)
+UI.mmStatus = text(UI.moduleMenu, "STATUS: MODULE MENU", UDim2.new(0, 220, 0, 18), UDim2.new(0, 20, 1, -28), C.muted, Enum.Font.Code)
+UI.mmStatus.ZIndex = 10
+
+UI.universePanel = Instance.new("Frame")
+UI.universePanel.Name = "UniverseViewer"
+UI.universePanel.Size = UDim2.new(0, math.min(980, viewport.X - 40), 0, math.min(640, viewport.Y - 40))
+UI.universePanel.Position = UDim2.new(0.5, -UI.universePanel.Size.X.Offset / 2, 0.5, -UI.universePanel.Size.Y.Offset / 2)
+UI.universePanel.BackgroundColor3 = C.bg
+UI.universePanel.BorderSizePixel = 0
+UI.universePanel.Visible = false
+UI.universePanel.ClipsDescendants = true
+UI.universePanel.Active = true
+UI.universePanel.Parent = gui
+stroke(UI.universePanel, Color3.fromRGB(125,125,125), 1, 0.08)
+
+UI.uvHeader = Instance.new("Frame")
+UI.uvHeader.Size = UDim2.new(1,0,0,58)
+UI.uvHeader.BackgroundColor3 = C.surface
+UI.uvHeader.BorderSizePixel = 0
+UI.uvHeader.Parent = UI.universePanel
+text(UI.uvHeader, "USURE INSTANCE  //  UNIVERSE VIEWER", UDim2.new(0,430,0,22), UDim2.new(0,18,0,8), C.white, Enum.Font.Code)
+text(UI.uvHeader, "PLACE / UNIVERSE INTELLIGENCE", UDim2.new(0,360,0,16), UDim2.new(0,18,0,31), C.silver, Enum.Font.Code)
+UI.uvHide = button(UI.uvHeader, "—", UDim2.new(0,30,0,26), UDim2.new(1,-86,0,16))
+UI.uvClose = button(UI.uvHeader, "×", UDim2.new(0,30,0,26), UDim2.new(1,-48,0,16))
+
+UI.uvThumb = Instance.new("ImageLabel")
+UI.uvThumb.Size = UDim2.new(0,360,0,202)
+UI.uvThumb.Position = UDim2.new(0,18,0,76)
+UI.uvThumb.BackgroundColor3 = C.panel
+UI.uvThumb.BorderSizePixel = 0
+UI.uvThumb.ScaleType = Enum.ScaleType.Crop
+UI.uvThumb.Image = "rbxthumb://type=Place&id=" .. tostring(game.PlaceId) .. "&w=420&h=236"
+UI.uvThumb.Parent = UI.universePanel
+stroke(UI.uvThumb, C.line2, 1, 0.14)
+
+UI.uvIdentity = Instance.new("Frame")
+UI.uvIdentity.Size = UDim2.new(1,-396,0,202)
+UI.uvIdentity.Position = UDim2.new(0,396,0,76)
+UI.uvIdentity.BackgroundColor3 = C.panel
+UI.uvIdentity.BorderSizePixel = 0
+UI.uvIdentity.Parent = UI.universePanel
+stroke(UI.uvIdentity, C.line, 1, 0.18)
+text(UI.uvIdentity, "CURRENT PLACE", UDim2.new(1,-24,0,16), UDim2.new(0,14,0,12), C.muted, Enum.Font.Code)
+UI.uvName = text(UI.uvIdentity, "Loading...", UDim2.new(1,-24,0,32), UDim2.new(0,14,0,30), C.white, Enum.Font.Code)
+UI.uvName.TextSize = 18
+UI.uvDesc = text(UI.uvIdentity, "", UDim2.new(1,-24,0,56), UDim2.new(0,14,0,66), C.text, Enum.Font.Code)
+UI.uvDesc.TextWrapped = true
+UI.uvIds = text(UI.uvIdentity, "PLACE: "..tostring(game.PlaceId).."   UNIVERSE: "..tostring(game.GameId), UDim2.new(1,-24,0,18), UDim2.new(0,14,0,132), C.silver, Enum.Font.Code)
+UI.uvCreated = text(UI.uvIdentity, "CREATED: --    UPDATED: --", UDim2.new(1,-24,0,18), UDim2.new(0,14,0,152), C.muted, Enum.Font.Code)
+UI.uvStats = text(UI.uvIdentity, "PLAYERS: "..tostring(#Players:GetPlayers()).." / "..tostring(Players.MaxPlayers), UDim2.new(1,-24,0,18), UDim2.new(0,14,0,172), C.white, Enum.Font.Code)
+
+UI.uvTabs = Instance.new("Frame")
+UI.uvTabs.Size = UDim2.new(1,-36,0,34)
+UI.uvTabs.Position = UDim2.new(0,18,0,292)
+UI.uvTabs.BackgroundTransparency = 1
+UI.uvTabs.Parent = UI.universePanel
+UI.uvOverviewTab = button(UI.uvTabs,"OVERVIEW",UDim2.new(0,112,0,30),UDim2.new(0,0,0,0))
+UI.uvServersTab = button(UI.uvTabs,"SERVERS",UDim2.new(0,112,0,30),UDim2.new(0,118,0,0))
+UI.uvSubplacesTab = button(UI.uvTabs,"SUBPLACES",UDim2.new(0,112,0,30),UDim2.new(0,236,0,0))
+UI.uvCopyPlace = button(UI.uvTabs,"COPY PLACE ID",UDim2.new(0,138,0,30),UDim2.new(1,-138,0,0))
+
+UI.uvBody = Instance.new("ScrollingFrame")
+UI.uvBody.Size = UDim2.new(1,-36,1,-342)
+UI.uvBody.Position = UDim2.new(0,18,0,334)
+UI.uvBody.BackgroundColor3 = C.panel
+UI.uvBody.BorderSizePixel = 0
+UI.uvBody.ScrollBarThickness = 3
+UI.uvBody.ScrollBarImageColor3 = C.line2
+UI.uvBody.CanvasSize = UDim2.new()
+UI.uvBody.Parent = UI.universePanel
+stroke(UI.uvBody, C.line, 1, 0.18)
+UI.uvBodyLayout = Instance.new("UIListLayout")
+UI.uvBodyLayout.Padding = UDim.new(0,4)
+UI.uvBodyLayout.Parent = UI.uvBody
+UI.uvStatus = text(UI.universePanel,"STATUS: READY",UDim2.new(0,360,0,16),UDim2.new(0,18,1,-22),C.muted,Enum.Font.Code)
+UI.uvBack = button(UI.universePanel, "[ BACK ]", UDim2.new(0,74,0,28), UDim2.new(1,-170,0,15))
+
+UI.remotePanel = Instance.new("Frame")
+UI.remotePanel.Name = "RemoteBrowser"
+UI.remotePanel.Size = UI.moduleMenu.Size
+UI.remotePanel.Position = UI.moduleMenu.Position
+UI.remotePanel.BackgroundColor3 = C.bg
+UI.remotePanel.BorderSizePixel = 0
+UI.remotePanel.Visible = false
+UI.remotePanel.Parent = gui
+stroke(UI.remotePanel, Color3.fromRGB(125,125,125), 1, 0.08)
+UI.rbTitle = text(UI.remotePanel, "REMOTE BROWSER", UDim2.new(1,-120,0,26), UDim2.new(0,18,0,16), C.white, Enum.Font.Code)
+UI.rbTitle.TextSize = 17
+UI.rbBack = button(UI.remotePanel, "[ BACK ]", UDim2.new(0,74,0,28), UDim2.new(1,-92,0,14))
+UI.rbSearch = input(UI.remotePanel, "SEARCH // REMOTE NAME...", UDim2.new(1,-36,0,30), UDim2.new(0,18,0,58))
+UI.rbList = Instance.new("ScrollingFrame")
+UI.rbList.Size = UDim2.new(1,-36,1,-108)
+UI.rbList.Position = UDim2.new(0,18,0,98)
+UI.rbList.BackgroundColor3 = C.panel
+UI.rbList.BorderSizePixel = 0
+UI.rbList.ScrollBarThickness = 2
+UI.rbList.ScrollBarImageColor3 = C.line2
+UI.rbList.CanvasSize = UDim2.new()
+UI.rbList.Parent = UI.remotePanel
+stroke(UI.rbList, C.line, 1, 0.2)
+UI.rbLayout = Instance.new("UIListLayout")
+UI.rbLayout.Padding = UDim.new(0,2)
+UI.rbLayout.Parent = UI.rbList
+UI.rbNote = text(UI.remotePanel, "READ ONLY  //  no remote interception or replay", UDim2.new(0,320,0,18), UDim2.new(0,18,1,-28), C.muted, Enum.Font.Code)
+
+UI.innerGlow = Instance.new("Frame")
+UI.innerGlow.Size = UDim2.new(1, 0, 1, 0)
+UI.innerGlow.BackgroundColor3 = Color3.fromRGB(120, 120, 120)
+UI.innerGlow.BackgroundTransparency = 0.985
+UI.innerGlow.BorderSizePixel = 0
+UI.innerGlow.ZIndex = 0
+UI.innerGlow.Parent = UI.main
+
+UI.top = Instance.new("Frame")
+UI.top.Size = UDim2.new(1, 0, 0, 62)
+UI.top.BackgroundColor3 = C.surface
+UI.top.BackgroundTransparency = 0
+UI.top.BorderSizePixel = 0
+UI.top.ZIndex = 40
+UI.top.Parent = UI.main
+
+UI.title = text(UI.top, "RIFT // INSTANCE EXPLORER", UDim2.new(0, 330, 0, 24), UDim2.new(0, 16, 0, 6), C.white, Enum.Font.Code)
+UI.title.TextSize = 14
+UI.title.ZIndex = 50
+UI.subtitle = text(UI.top, "LOCAL INSTANCE TREE  |  ADMIN CONSOLE", UDim2.new(0, 330, 0, 16), UDim2.new(0, 16, 0, 34), C.silver, Enum.Font.Code)
+UI.subtitle.ZIndex = 50
+UI.modes = text(UI.top, "[ROOT] [TREE] [INSPECT] [TOOLS]", UDim2.new(0, 280, 0, 14), UDim2.new(0, 360, 0, 34), C.silver, Enum.Font.Code)
+UI.modes.ZIndex = 50
+
+UI.status = text(UI.top, "STATUS: READY", UDim2.new(0, 220, 0, 18), UDim2.new(1, -650, 0, 20), C.muted, Enum.Font.Code)
+UI.status.TextXAlignment = Enum.TextXAlignment.Right
+UI.status.TextTruncate = Enum.TextTruncate.AtEnd
+UI.status.ZIndex = 50
+
+UI.propsToggle = button(UI.top, "P", UDim2.new(0, 28, 0, 26), UDim2.new(1, -248, 0, 18))
+UI.propsToggle.TextSize = 12
+UI.propsToggle.Font = Enum.Font.GothamBold
+UI.propsToggle.TextColor3 = C.white
+UI.propsToggle.ZIndex = 60
+UI.propsToggle.Visible = false
+
+UI.dockRight = button(UI.top, ">>", UDim2.new(0, 28, 0, 26), UDim2.new(1, -212, 0, 18))
+UI.dockRight.TextSize = 12
+UI.dockRight.Font = Enum.Font.Code
+UI.dockRight.TextColor3 = C.white
+UI.dockRight.ZIndex = 60
+
+UI.refresh = button(UI.top, "[ REFRESH ]", UDim2.new(0, 88, 0, 26), UDim2.new(1, -178, 0, 18))
+UI.refresh.ZIndex = 60
+
+UI.settingsButton = button(UI.top, "CFG", UDim2.new(0, 34, 0, 26), UDim2.new(1, -276, 0, 18))
+UI.settingsButton.TextSize = 10
+UI.settingsButton.Font = Enum.Font.GothamBold
+UI.settingsButton.TextColor3 = C.white
+UI.settingsButton.ZIndex = 60
+
+UI.minimize = button(UI.top, "—", UDim2.new(0, 28, 0, 26), UDim2.new(1, -82, 0, 18))
+UI.minimize.TextSize = 15
+UI.minimize.Font = Enum.Font.Code
+UI.minimize.TextColor3 = C.white
+UI.minimize.ZIndex = 60
+
+UI.close = button(UI.top, "×", UDim2.new(0, 28, 0, 26), UDim2.new(1, -44, 0, 18))
+UI.close.TextSize = 16
+UI.close.Font = Enum.Font.Code
+UI.close.TextColor3 = C.white
+UI.close.ZIndex = 60
+
+UI.searchGlobal = input(UI.top, "Quick find instance...", UDim2.new(0, 220, 0, 30), UDim2.new(1, -510, 0, 14))
+UI.searchGlobal.Visible = false
+
+UI.mini = Instance.new("TextButton")
+UI.mini.Name = "RiftMini"
+UI.mini.Size = UDim2.new(0, 118, 0, 30)
+UI.mini.Position = UDim2.new(0.5, -59, 0.5, -15)
+UI.mini.BackgroundColor3 = C.panel
+UI.mini.BackgroundTransparency = 0.02
+UI.mini.BorderSizePixel = 0
+UI.mini.AutoButtonColor = false
+UI.mini.Text = "EXPLORER"
+UI.mini.TextColor3 = C.white
+UI.mini.TextSize = 13
+UI.mini.Font = Enum.Font.GothamBold
+UI.mini.Visible = false
+UI.mini.Active = true
+UI.mini.ZIndex = 500
+UI.mini.Parent = gui
+stroke(UI.mini, C.line2, 1, 0.1)
+UI.mini.ClipsDescendants = true
+
+UI.miniSweep = Instance.new("Frame")
+UI.miniSweep.Size = UDim2.new(0, 18, 1, 0)
+UI.miniSweep.Position = UDim2.new(0, -24, 0, 0)
+UI.miniSweep.BackgroundColor3 = C.white
+UI.miniSweep.BackgroundTransparency = 0.94
+UI.miniSweep.BorderSizePixel = 0
+UI.miniSweep.ZIndex = 499
+UI.miniSweep.Parent = UI.mini
+UI.miniGradient = Instance.new("UIGradient")
+UI.miniGradient.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,1),NumberSequenceKeypoint.new(0.5,0.2),NumberSequenceKeypoint.new(1,1)})
+UI.miniGradient.Parent = UI.miniSweep
+
+UI.alarmPanel = Instance.new("Frame")
+UI.alarmPanel.Name = "PerformanceAlarm"
+UI.alarmPanel.Size = UDim2.new(0, 300, 0, 86)
+UI.alarmPanel.Position = UDim2.new(0.5, -150, 0, 20)
+UI.alarmPanel.BackgroundColor3 = C.black
+UI.alarmPanel.BackgroundTransparency = 0.03
+UI.alarmPanel.BorderSizePixel = 0
+UI.alarmPanel.Visible = false
+UI.alarmPanel.ZIndex = 1000
+UI.alarmPanel.ClipsDescendants = true
+UI.alarmPanel.Parent = gui
+stroke(UI.alarmPanel, C.white, 1, 0.15)
+UI.alarmTitle = text(UI.alarmPanel, "ALARM", UDim2.new(1, -18, 0, 26), UDim2.new(0, 9, 0, 7), C.white, Enum.Font.Code)
+UI.alarmTitle.TextSize = 18
+UI.alarmTitle.ZIndex = 1001
+UI.alarmText = text(UI.alarmPanel, "LOW FPS DETECTED  //  LOADING HALTED", UDim2.new(1, -18, 0, 16), UDim2.new(0, 9, 0, 34), C.muted, Enum.Font.Code)
+UI.alarmText.ZIndex = 1001
+UI.alarmHint = text(UI.alarmPanel, "CLICK UI TO RESTORE EXPLORER", UDim2.new(1, -18, 0, 16), UDim2.new(0, 9, 0, 55), C.silver, Enum.Font.Code)
+UI.alarmHint.ZIndex = 1001
+
+UI.content = Instance.new("Frame")
+UI.content.Size = UDim2.new(1, -20, 1, -74)
+UI.content.Position = UDim2.new(0, 10, 0, 70)
+UI.content.BackgroundTransparency = 1
+UI.content.Parent = UI.main
+
+circle(UI.main, 180, UDim2.new(0.72, 0, 0.14, 0), 0.88)
+circle(UI.main, 90, UDim2.new(0.82, 0, 0.55, 0), 0.82)
+circle(UI.main, 240, UDim2.new(0.38, 0, 0.64, 0), 0.93)
+circle(UI.main, 52, UDim2.new(0.17, 0, 0.72, 0), 0.76)
+
+UI.sidebar = Instance.new("Frame")
+UI.sidebar.Size = UDim2.new(0, 180, 1, 0)
+UI.sidebar.BackgroundColor3 = C.panel
+UI.sidebar.BackgroundTransparency = 0
+UI.sidebar.BorderSizePixel = 0
+UI.sidebar.Parent = UI.content
+corner(UI.sidebar, 10)
+stroke(UI.sidebar, C.line2, 1, 0.08)
+text(UI.sidebar, "[ EXPLORER ]", UDim2.new(1, -22, 0, 20), UDim2.new(0, 11, 0, 10), C.white, Enum.Font.Code)
+text(UI.sidebar, "SERVICES // ROOTS", UDim2.new(1, -22, 0, 15), UDim2.new(0, 11, 0, 31), C.muted, Enum.Font.Code)
+
+UI.serviceList = Instance.new("ScrollingFrame")
+UI.serviceList.Size = UDim2.new(1, -12, 1, -54)
+UI.serviceList.Position = UDim2.new(0, 6, 0, 52)
+UI.serviceList.BackgroundTransparency = 1
+UI.serviceList.BorderSizePixel = 0
+UI.serviceList.ScrollBarThickness = 2
+UI.serviceList.ScrollBarImageColor3 = C.line2
+UI.serviceList.CanvasSize = UDim2.new()
+UI.serviceList.Parent = UI.sidebar
+
+UI.serviceLayout = Instance.new("UIListLayout")
+UI.serviceLayout.Padding = UDim.new(0, 4)
+UI.serviceLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UI.serviceLayout.Parent = UI.serviceList
+
+UI.center = Instance.new("Frame")
+UI.center.Size = UDim2.new(0, 570, 1, 0)
+UI.center.Position = UDim2.new(0, 190, 0, 0)
+UI.center.BackgroundColor3 = C.panel
+UI.center.BackgroundTransparency = 0
+UI.center.BorderSizePixel = 0
+UI.center.Parent = UI.content
+corner(UI.center, 10)
+stroke(UI.center, C.line2, 1, 0.08)
+UI.toolbar = Instance.new("Frame")
+UI.toolbar.Size = UDim2.new(1, -16, 0, 40)
+UI.toolbar.Position = UDim2.new(0, 8, 0, 8)
+UI.toolbar.BackgroundTransparency = 1
+UI.toolbar.Parent = UI.center
+
+UI.search = input(UI.toolbar, "SEARCH // NAME...", UDim2.new(1, -104, 0, 32), UDim2.new(0, 0, 0, 4))
+UI.mode = button(UI.toolbar, "NAME", UDim2.new(0, 94, 0, 32), UDim2.new(1, -94, 0, 4))
+
+UI.breadcrumb = input(UI.center, "Selected path", UDim2.new(1, -16, 0, 30), UDim2.new(0, 8, 0, 54))
+UI.breadcrumb.Text = "ROOT: Workspace"
+UI.breadcrumb.TextEditable = false
+
+UI.tree = Instance.new("ScrollingFrame")
+UI.tree.Size = UDim2.new(1, -16, 1, -94)
+UI.tree.Position = UDim2.new(0, 8, 0, 90)
+UI.tree.BackgroundColor3 = C.bg
+UI.tree.BackgroundTransparency = 0
+UI.tree.BorderSizePixel = 0
+UI.tree.ScrollBarThickness = 3
+UI.tree.ScrollBarImageColor3 = C.line2
+UI.tree.CanvasSize = UDim2.new()
+UI.tree.Parent = UI.center
+corner(UI.tree, 8)
+stroke(UI.tree, C.line, 1, 0.28)
+
+UI.treeLayout = Instance.new("UIListLayout")
+UI.treeLayout.Padding = UDim.new(0, 1)
+UI.treeLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UI.treeLayout.Parent = UI.tree
+
+UI.inspector = Instance.new("Frame")
+UI.inspector.Size = UDim2.new(1, -770, 1, 0)
+UI.inspector.Position = UDim2.new(0, 770, 0, 0)
+UI.inspector.BackgroundColor3 = C.panel
+UI.inspector.BackgroundTransparency = 0
+UI.inspector.BorderSizePixel = 0
+UI.inspector.Parent = UI.content
+corner(UI.inspector, 10)
+stroke(UI.inspector, C.line2, 1, 0.08)
+UI.inspectorGlow = Instance.new("Frame")
+UI.inspectorGlow.Size = UDim2.new(1, 0, 0, 1)
+UI.inspectorGlow.Position = UDim2.new(0, 0, 0, 0)
+UI.inspectorGlow.BackgroundColor3 = C.silver
+UI.inspectorGlow.BackgroundTransparency = 0.8
+UI.inspectorGlow.BorderSizePixel = 0
+UI.inspectorGlow.ZIndex = 5
+UI.inspectorGlow.Parent = UI.inspector
+
+text(UI.inspector, "[ PROPERTIES ]", UDim2.new(1, -22, 0, 20), UDim2.new(0, 11, 0, 10), C.white, Enum.Font.Code)
+text(UI.inspector, "INSTANCE INSPECTOR // READ ONLY", UDim2.new(1, -22, 0, 15), UDim2.new(0, 11, 0, 31), C.muted, Enum.Font.Code)
+
+UI.propSearch = input(UI.inspector, "FILTER // PROPERTY...", UDim2.new(1, -22, 0, 30), UDim2.new(0, 11, 0, 53))
+
+UI.propScroll = Instance.new("ScrollingFrame")
+UI.propScroll.Size = UDim2.new(1, -22, 1, -95)
+UI.propScroll.Position = UDim2.new(0, 11, 0, 89)
+UI.propScroll.BackgroundTransparency = 1
+UI.propScroll.BorderSizePixel = 0
+UI.propScroll.ScrollBarThickness = 3
+UI.propScroll.ScrollBarImageColor3 = C.line2
+UI.propScroll.CanvasSize = UDim2.new()
+UI.propScroll.Parent = UI.inspector
+
+UI.propLayout = Instance.new("UIListLayout")
+UI.propLayout.Padding = UDim.new(0, 3)
+UI.propLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UI.propLayout.Parent = UI.propScroll
+
+local settingsPanel = Instance.new("Frame")
+settingsPanel.Name = "WatchdogSettings"
+settingsPanel.Size = UDim2.new(0, 260, 0, 198)
+settingsPanel.Position = UDim2.new(1, -286, 0, 50)
+settingsPanel.BackgroundColor3 = C.panel
+settingsPanel.BackgroundTransparency = 0.02
+settingsPanel.BorderSizePixel = 0
+settingsPanel.Visible = false
+settingsPanel.ZIndex = 200
+settingsPanel.ClipsDescendants = true
+settingsPanel.Parent = UI.top
+stroke(settingsPanel, C.line2, 1, 0.08)
+
+local settingsTitle = text(settingsPanel, "[ PERFORMANCE GUARD ]", UDim2.new(1, -20, 0, 20), UDim2.new(0, 10, 0, 8), C.white, Enum.Font.Code)
+settingsTitle.ZIndex = 210
+local settingsSub = text(settingsPanel, "AUTO-STOP INSTANCE LOADING ON LOW FPS", UDim2.new(1, -20, 0, 16), UDim2.new(0, 10, 0, 30), C.muted, Enum.Font.Code)
+settingsSub.ZIndex = 210
+
+local guardToggle = button(settingsPanel, "GUARD: ON", UDim2.new(0, 112, 0, 26), UDim2.new(0, 10, 0, 52))
+guardToggle.ZIndex = 210
+
+local fpsLabel = text(settingsPanel, "FPS LIMIT", UDim2.new(0, 90, 0, 22), UDim2.new(0, 130, 0, 54), C.muted, Enum.Font.Code)
+fpsLabel.ZIndex = 210
+local fpsBox = input(settingsPanel, "30", UDim2.new(0, 82, 0, 26), UDim2.new(0, 130, 0, 76))
+fpsBox.Text = "30"
+fpsBox.ZIndex = 211
+
+local durationLabel = text(settingsPanel, "LOW FOR", UDim2.new(0, 90, 0, 22), UDim2.new(0, 10, 0, 82), C.muted, Enum.Font.Code)
+durationLabel.ZIndex = 210
+local durationBox = input(settingsPanel, "2.0", UDim2.new(0, 82, 0, 26), UDim2.new(0, 130, 0, 76))
+durationBox.Text = "2.0"
+durationBox.Position = UDim2.new(0, 130, 0, 108)
+durationBox.ZIndex = 211
+
+local settingsHint = text(settingsPanel, "seconds before ALARM + loading halt", UDim2.new(0, 112, 0, 22), UDim2.new(0, 10, 0, 112), C.soft, Enum.Font.Code)
+settingsHint.ZIndex = 210
+
+local settingsApply = button(settingsPanel, "APPLY", UDim2.new(0, 92, 0, 26), UDim2.new(1, -102, 1, -36))
+settingsApply.ZIndex = 210
+local settingsReset = button(settingsPanel, "RESET", UDim2.new(0, 74, 0, 26), UDim2.new(0, 10, 1, -36))
+settingsReset.ZIndex = 210
+local settingsState = text(settingsPanel, "ARMED", UDim2.new(0, 90, 0, 20), UDim2.new(0, 92, 1, -35), C.silver, Enum.Font.Code)
+settingsState.TextXAlignment = Enum.TextXAlignment.Center
+settingsState.ZIndex = 210
+
+UI.context = Instance.new("Frame")
+UI.context.Size = UDim2.new(0, 235, 0, 0)
+UI.context.AutomaticSize = Enum.AutomaticSize.Y
+UI.context.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+UI.context.BackgroundTransparency = 0.01
+UI.context.BorderSizePixel = 0
+UI.context.Visible = false
+UI.context.ZIndex = 500
+UI.context.Parent = gui
+corner(UI.context, 9)
+stroke(UI.context, C.line2, 1, 0.05)
+
+UI.contextPad = Instance.new("UIPadding")
+UI.contextPad.PaddingTop = UDim.new(0, 6)
+UI.contextPad.PaddingBottom = UDim.new(0, 6)
+UI.contextPad.PaddingLeft = UDim.new(0, 6)
+UI.contextPad.PaddingRight = UDim.new(0, 6)
+UI.contextPad.Parent = UI.context
+
+UI.contextLayout = Instance.new("UIListLayout")
+UI.contextLayout.Padding = UDim.new(0, 2)
+UI.contextLayout.Parent = UI.context
+
+local selected
+local selectedRow
+local currentRoot = workspace
+local searchMode = "NAME"
+local propertyQuery = ""
+local expanded = {}
+local rowMap = {}
+local serviceButtons = {}
+local connections = {}
+local selectionBox
+local selectionObjects = {}
+local selectionGuiStrokes = {}
+local minimized = false
+local dockedRight = false
+local propertyDrawerOpen = false
+local savedPosition = UI.main.Position
+local savedSize = UI.main.Size
+local miniDragging = false
+local miniMoved = false
+local miniHasCustomPosition = false
+local miniSavedPosition = nil
+local miniDragStart
+local miniStartPosition
+local dragging = false
+local dragStart
+local startPosition
+local resizing = false
+local resizeStart
+local startSize
+local editingPropertyBox = nil
+local editingPropertyName = nil
+local editingPropertyObject = nil
+local updateProperties
+local watchdogEnabled = true
+local watchdogFpsThreshold = 30
+local watchdogDuration = 2
+local watchdogLowTime = 0
+local watchdogCooldown = 0
+local watchdogArmed = false
+local alarmActive = false
+local loadingPaused = false
+local moduleMenuOpen = false
+local welcomeShown = true
+local performanceFrameCount = 0
+local performanceWindow = 0
+local performanceSampling = false
+local refreshQueued = false
+
+local function setStatus(value)
+    UI.status.Text = value
+end
+
+local function clear(container)
+    for _, child in ipairs(container:GetChildren()) do
+        if not child:IsA("UIListLayout") and not child:IsA("UIPadding") then
+            child:Destroy()
+        end
+    end
+end
+
+local function disconnectAll()
+    for _, connection in ipairs(connections) do
+        connection:Disconnect()
+    end
+    connections = {}
+end
+
+local function setMiniWindow(titleText)
+    local savedPosition = miniSavedPosition
+    UI.mini.Size = UDim2.new(0, math.max(78, #titleText * 7 + 30), 0, 30)
+    if savedPosition then
+        UI.mini.Position = savedPosition
+    elseif not miniHasCustomPosition then
+        UI.mini.Position = UDim2.new(0.5, -UI.mini.Size.X.Offset / 2, 0.5, -15)
+    end
+    UI.mini.Text = titleText
+    UI.mini.TextSize = 11
+    UI.mini.Visible = true
+end
+
+local function hideActiveWindow()
+    if not UI.activeWindow or not UI.activeWindow.panel then return end
+    local hidden = UI.activeWindow
+    hidden.panel.Visible = false
+    UI.hiddenWindow = hidden
+    if hidden.panel == UI.main then
+        loadingPaused = true
+        refreshQueued = false
+        disconnectAll()
+    end
+    setMiniWindow(hidden.title)
+end
+
+local function restoreActiveWindow()
+    if not UI.hiddenWindow or not UI.hiddenWindow.panel then return end
+    local restored = UI.hiddenWindow
+    restored.panel.Parent = gui
+    restored.panel.Visible = true
+    UI.activeWindow = restored
+    UI.hiddenWindow = nil
+    UI.mini.Visible = false
+    if restored.panel == UI.main then
+        loadingPaused = false
+        if currentRoot then
+            renderChildren(currentRoot)
+        end
+        updateProperties()
+    end
+end
+
+local function closeWindow(panel)
+    if panel == UI.main or panel == UI.moduleMenu then
+        watchdogArmed = false
+        loadingPaused = true
+        alarmActive = false
+        disconnectAll()
+        gui:Destroy()
+        return
+    end
+    panel.Visible = false
+    panel.Parent = gui
+    UI.hiddenWindow = nil
+    UI.mini.Visible = false
+    showModuleMenu()
+end
+
+local function installWindowControls(panel, titleText, header)
+    local hideButton = button(header, "—", UDim2.new(0,30,0,26), UDim2.new(1,-86,0,16))
+    local closeButton = button(header, "×", UDim2.new(0,30,0,26), UDim2.new(1,-48,0,16))
+    hideButton.MouseButton1Click:Connect(function()
+        UI.activeWindow = {panel=panel,title=titleText}
+        hideActiveWindow()
+    end)
+    closeButton.MouseButton1Click:Connect(function() closeWindow(panel) end)
+end
+
+local function copyText(value)
+    if setclipboard then
+        setclipboard(value)
+        setStatus("STATUS: COPIED")
+    else
+        setStatus("STATUS: CLIPBOARD N/A")
+    end
+end
+
+local function pathOf(obj)
+    local full = obj:GetFullName()
+    return full:gsub("%.([0-9]+)([%.%s]|$)", function(num, tail)
+        return '["' .. num .. '"]' .. tail
+    end)
+end
+
+local function clearSelectionVisuals()
+    if selectionBox then selectionBox:Destroy(); selectionBox = nil end
+    for _, item in ipairs(selectionObjects) do
+        if item and item.Parent then item:Destroy() end
+    end
+    table.clear(selectionObjects)
+    for _, stroke in ipairs(selectionGuiStrokes) do
+        if stroke and stroke.Parent then stroke:Destroy() end
+    end
+    table.clear(selectionGuiStrokes)
+end
+
+local function formatValue(value)
+    local kind = typeof(value)
+    if kind == "Instance" then
+        return value:GetFullName()
+    elseif kind == "EnumItem" then
+        return tostring(value)
+    elseif kind == "Color3" then
+        return string.format("%.0f, %.0f, %.0f", value.R * 255, value.G * 255, value.B * 255)
+    elseif kind == "Vector2" then
+        return string.format("%.2f, %.2f", value.X, value.Y)
+    elseif kind == "Vector3" then
+        return string.format("%.2f, %.2f, %.2f", value.X, value.Y, value.Z)
+    elseif kind == "CFrame" then
+        local p = value.Position
+        return string.format("%.2f, %.2f, %.2f", p.X, p.Y, p.Z)
+    end
+    return tostring(value)
+end
+
+local function icon(obj)
+    if obj:IsA("Folder") then
+        return "▣"
+    elseif obj:IsA("Model") then
+        return "◇"
+    elseif obj:IsA("BasePart") then
+        return "◆"
+    elseif obj:IsA("RemoteEvent") then
+        return "↗"
+    elseif obj:IsA("RemoteFunction") then
+        return "⇄"
+    elseif obj:IsA("BindableEvent") or obj:IsA("BindableFunction") then
+        return "↔"
+    elseif obj:IsA("Script") or obj:IsA("LocalScript") or obj:IsA("ModuleScript") then
+        return "λ"
+    elseif obj:IsA("GuiObject") then
+        return "□"
+    elseif obj:IsA("Sound") then
+        return "♪"
+    elseif obj:IsA("Camera") then
+        return "◉"
+    elseif obj:IsA("ValueBase") then
+        return "="
+    end
+    return "•"
+end
+
+local function isContainer(obj)
+    return #obj:GetChildren() > 0
+end
+
+local function highlight(obj)
+    clearSelectionVisuals()
+    if not obj then return end
+
+    if obj:IsA("BasePart") or obj:IsA("Model") then
+        local h = Instance.new("Highlight")
+        h.Name = "USURESelection"
+        h.Adornee = obj
+        h.FillTransparency = 1
+        h.OutlineColor = C.white
+        h.OutlineTransparency = 0
+        h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        h.Parent = gui
+        table.insert(selectionObjects, h)
+    elseif obj:IsA("GuiObject") then
+        local stroke = Instance.new("UIStroke")
+        stroke.Name = "USURESelection"
+        stroke.Color = C.white
+        stroke.Thickness = 2
+        stroke.Parent = obj
+        table.insert(selectionGuiStrokes, stroke)
+    end
+
+    for _, child in ipairs(obj:GetDescendants()) do
+        if child:IsA("GuiObject") then
+            local stroke = Instance.new("UIStroke")
+            stroke.Name = "USURESelection"
+            stroke.Color = C.white
+            stroke.Thickness = 1.5
+            stroke.Transparency = 0.15
+            stroke.Parent = child
+            table.insert(selectionGuiStrokes, stroke)
+        elseif child:IsA("BasePart") and not obj:IsA("Model") then
+            local box = Instance.new("SelectionBox")
+            box.Name = "USURESelection"
+            box.Adornee = child
+            box.Color3 = C.white
+            box.LineThickness = 0.035
+            box.SurfaceTransparency = 1
+            box.Parent = gui
+            table.insert(selectionObjects, box)
+        end
+    end
+end
+
+local readOnlyProperties = {
+    ClassName = true,
+    AbsolutePosition = true,
+    AbsoluteSize = true,
+    Orientation = true,
+    Rotation = true,
+    WorldPivot = true,
+    TargetFilter = true,
+    CurrentCamera = true,
+    Path = true,
+    Type = true
+}
+
+local function parsePropertyValue(textValue, currentValue)
+    local kind = typeof(currentValue)
+    local value = textValue
+
+    if kind == "string" then
+        return value
+    elseif kind == "boolean" then
+        local v = value:lower()
+        if v == "true" or v == "1" or v == "yes" or v == "on" then
+            return true
+        elseif v == "false" or v == "0" or v == "no" or v == "off" then
+            return false
+        end
+    elseif kind == "number" then
+        return tonumber(value)
+    elseif kind == "Vector2" then
+        local x, y = value:match("^%s*([%-%d%.]+)%s*,%s*([%-%d%.]+)%s*$")
+        if x and y then return Vector2.new(tonumber(x), tonumber(y)) end
+    elseif kind == "Vector3" then
+        local x, y, z = value:match("^%s*([%-%d%.]+)%s*,%s*([%-%d%.]+)%s*,%s*([%-%d%.]+)%s*$")
+        if x and y and z then return Vector3.new(tonumber(x), tonumber(y), tonumber(z)) end
+    elseif kind == "Color3" then
+        local r, g, b = value:match("^%s*([%-%d%.]+)%s*,%s*([%-%d%.]+)%s*,%s*([%-%d%.]+)%s*$")
+        if r and g and b then
+            r, g, b = tonumber(r), tonumber(g), tonumber(b)
+            if r and g and b then
+                if r > 1 or g > 1 or b > 1 then
+                    r, g, b = r / 255, g / 255, b / 255
+                end
+                return Color3.new(math.clamp(r, 0, 1), math.clamp(g, 0, 1), math.clamp(b, 0, 1))
+            end
+        end
+    elseif kind == "EnumItem" then
+        local enumType = tostring(currentValue.EnumType)
+        local enumName = value:match("Enum%.[^%.]+%.(.+)") or value
+        local enumObject = Enum[enumType]
+        if enumObject then
+            local ok, item = pcall(function() return enumObject[enumName] end)
+            if ok and item then return item end
+        end
+    elseif kind == "BrickColor" then
+        local ok, bc = pcall(function() return BrickColor.new(value) end)
+        if ok then return bc end
+    end
+
+    return nil
+end
+
+local function commitProperty(name, valueBox, object)
+    if not object or object.Parent == nil or not valueBox then return false end
+    if readOnlyProperties[name] then return false end
+
+    local ok, currentValue = pcall(function()
+        return object[name]
+    end)
+    if not ok or currentValue == nil then return false end
+
+    local parsed = parsePropertyValue(valueBox.Text, currentValue)
+    if parsed == nil then
+        valueBox.Text = formatValue(currentValue)
+        setStatus("STATUS: INVALID VALUE // " .. name)
+        return false
+    end
+
+    local assigned = pcall(function()
+        object[name] = parsed
+    end)
+
+    if not assigned then
+        valueBox.Text = formatValue(currentValue)
+        setStatus("STATUS: READ ONLY // " .. name)
+        return false
+    end
+
+    local verifyOk, newValue = pcall(function()
+        return object[name]
+    end)
+    if verifyOk and newValue ~= nil then
+        valueBox.Text = formatValue(newValue)
+    end
+
+    setStatus("STATUS: UPDATED // " .. name)
+    return true
+end
+
+local function addProperty(name, value)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, 0, 0, 34)
+    row.BackgroundColor3 = C.panel2
+    row.BackgroundTransparency = 0
+    row.BorderSizePixel = 0
+    row.Parent = UI.propScroll
+    corner(row, 6)
+    stroke(row, C.line, 1, 0.35)
+
+    text(row, name, UDim2.new(0.35, -8, 1, 0), UDim2.new(0, 8, 0, 0), C.muted, Enum.Font.Code)
+
+    local valueBox = input(row, "", UDim2.new(0.65, -42, 1, -8), UDim2.new(0.35, 2, 0, 4))
+    valueBox.Text = formatValue(value)
+    valueBox.TextEditable = not readOnlyProperties[name]
+    valueBox.Selectable = true
+    valueBox.ClearTextOnFocus = false
+
+    local copyButton = button(row, "COPY", UDim2.new(0, 36, 0, 26), UDim2.new(1, -40, 0, 4))
+    copyButton.TextSize = 9
+    copyButton.ZIndex = 60
+    copyButton.MouseButton1Click:Connect(function()
+        copyText(valueBox.Text)
+        valueBox:CaptureFocus()
+        valueBox.SelectionStart = 1
+        valueBox.CursorPosition = #valueBox.Text + 1
+    end)
+
+    if not readOnlyProperties[name] then
+        valueBox.Focused:Connect(function()
+            editingPropertyBox = valueBox
+            editingPropertyName = name
+            editingPropertyObject = selected
+            valueBox.BackgroundColor3 = C.hover
+        end)
+
+        valueBox.FocusLost:Connect(function()
+            local object = editingPropertyObject
+            local propertyName = editingPropertyName
+            local box = editingPropertyBox
+            editingPropertyBox = nil
+            editingPropertyName = nil
+            editingPropertyObject = nil
+            valueBox.BackgroundColor3 = C.surface
+
+            if box == valueBox and object == selected and propertyName == name then
+                commitProperty(name, valueBox, object)
+                task.defer(updateProperties)
+            end
+        end)
+    end
+
+    return valueBox
+end
+
+local properties = {
+    "Name",
+    "ClassName",
+    "Parent",
+    "Archivable",
+    "Enabled",
+    "Visible",
+    "Value",
+    "Position",
+    "Size",
+    "AbsolutePosition",
+    "AbsoluteSize",
+    "Orientation",
+    "Rotation",
+    "CFrame",
+    "WorldPivot",
+    "Anchored",
+    "CanCollide",
+    "CanTouch",
+    "CanQuery",
+    "Material",
+    "Color",
+    "Transparency",
+    "Reflectance",
+    "Massless",
+    "Text",
+    "TextSize",
+    "TextColor3",
+    "Font",
+    "BackgroundColor3",
+    "BackgroundTransparency",
+    "Image",
+    "ImageColor3",
+    "ImageTransparency",
+    "ZIndex",
+    "LayoutOrder",
+    "SoundId",
+    "Volume",
+    "Playing",
+    "Looped",
+    "PlaybackSpeed",
+    "Health",
+    "MaxHealth",
+    "WalkSpeed",
+    "JumpPower",
+    "PrimaryPart",
+    "Adornee",
+    "Part0",
+    "Part1",
+    "TargetFilter",
+    "CurrentCamera"
+}
+
+updateProperties = function()
+    if not UI.main.Visible then
+        return
+    end
+    if editingPropertyBox and editingPropertyBox:IsFocused() then
+        return
+    end
+
+    clear(UI.propScroll)
+
+    if not selected then
+        text(UI.propScroll, "Select an instance.", UDim2.new(1, -16, 0, 30), UDim2.new(0, 8, 0, 8), C.muted, Enum.Font.Code)
+        UI.propScroll.CanvasSize = UDim2.new()
+        return
+    end
+
+    local q = propertyQuery:lower()
+    local count = 0
+
+    local header = Instance.new("Frame")
+    header.Size = UDim2.new(1, 0, 0, 58)
+    header.BackgroundColor3 = C.panel3
+    header.BackgroundTransparency = 0.04
+    header.BorderSizePixel = 0
+    header.Parent = UI.propScroll
+    corner(header, 7)
+    stroke(header, C.line2, 1, 0.22)
+    text(header, icon(selected) .. "  " .. selected.Name, UDim2.new(1, -16, 0, 22), UDim2.new(0, 8, 0, 6), C.white, Enum.Font.Code)
+    text(header, selected.ClassName, UDim2.new(1, -16, 0, 16), UDim2.new(0, 8, 0, 30), C.muted, Enum.Font.Code)
+
+    if selected:IsA("RemoteEvent") or selected:IsA("RemoteFunction") then
+        addProperty("Path", pathOf(selected))
+        addProperty("Type", selected.ClassName)
+        addProperty("Parent", selected.Parent and selected.Parent:GetFullName() or "nil")
+        addProperty("Archivable", selected.Archivable)
+    else
+        for _, name in ipairs(properties) do
+            if q == "" or name:lower():find(q, 1, true) then
+                local ok, value = pcall(function()
+                    return selected[name]
+                end)
+
+                if ok and value ~= nil then
+                    addProperty(name, value)
+                    count += 1
+                elseif name == "Position" and selected:IsA("Model") then
+                    addProperty(name, selected:GetPivot().Position)
+                    count += 1
+                elseif name == "CFrame" and selected:IsA("Model") then
+                    addProperty(name, selected:GetPivot())
+                    count += 1
+                elseif name == "WorldPivot" and selected:IsA("Model") then
+                    addProperty(name, selected.WorldPivot)
+                    count += 1
+                end
+            end
+        end
+    end
+
+    UI.propScroll.CanvasSize = UDim2.new(0, 0, 0, UI.propLayout.AbsoluteContentSize.Y + 10)
+    if count > 0 then
+        setStatus("INSPECT: " .. selected.ClassName .. "  |  PROPS: " .. count)
+    end
+end
+
+local function selectObject(obj, row)
+    selected = obj
+    selectedRow = row
+    UI.breadcrumb.Text = pathOf(obj)
+    highlight(obj)
+
+    for _, buttonObject in pairs(rowMap) do
+        buttonObject.BackgroundColor3 = C.panel2
+    end
+
+    if row then
+        row.BackgroundColor3 = C.panel3
+    end
+
+    updateProperties()
+end
+
+local function contextButton(name)
+    local b = button(UI.context, name, UDim2.new(1, 0, 0, 30))
+    b.ZIndex = 501
+    b.TextXAlignment = Enum.TextXAlignment.Left
+    return b
+end
+
+local ctx = {
+    copyPath = contextButton("  Copy full path"),
+    copyName = contextButton("  Copy name"),
+    expand = contextButton("  Expand children"),
+    collapse = contextButton("  Collapse children"),
+    focus = contextButton("  Focus camera"),
+    teleport = contextButton("  Teleport to instance"),
+    highlight = contextButton("  Highlight instance"),
+    delete = contextButton("  Delete instance"),
+    inspect = contextButton("  Inspect remote"),
+    refresh = contextButton("  Refresh explorer")
+}
+
+local function showContext(obj)
+    selectObject(obj, rowMap[obj])
+    local p = UserInputService:GetMouseLocation()
+    local viewport = workspace.CurrentCamera.ViewportSize
+    UI.context.Position = UDim2.new(0, math.min(p.X, viewport.X - 245), 0, math.min(p.Y, viewport.Y - 360))
+    UI.context.Visible = true
+    ctx.inspect.Visible = obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")
+    ctx.expand.Visible = isContainer(obj)
+    ctx.collapse.Visible = expanded[obj] == true
+end
+
+ctx.copyPath.MouseButton1Click:Connect(function()
+    copyText(pathOf(selected))
+    UI.context.Visible = false
+end)
+
+ctx.copyName.MouseButton1Click:Connect(function()
+    copyText(selected.Name)
+    UI.context.Visible = false
+end)
+
+ctx.expand.MouseButton1Click:Connect(function()
+    expanded[selected] = true
+    UI.context.Visible = false
+    renderChildren(currentRoot)
+end)
+
+ctx.collapse.MouseButton1Click:Connect(function()
+    expanded[selected] = nil
+    UI.context.Visible = false
+    renderChildren(currentRoot)
+end)
+
+ctx.focus.MouseButton1Click:Connect(function()
+    if selected:IsA("BasePart") or selected:IsA("Model") then
+        local camera = workspace.CurrentCamera
+        local cf = selected:IsA("BasePart") and selected.CFrame or selected:GetPivot()
+        local distance = selected:IsA("BasePart") and math.max(selected.Size.Magnitude * 1.7, 8) or 14
+        camera.CameraType = Enum.CameraType.Scriptable
+        camera.CFrame = cf * CFrame.new(0, 0, distance)
+        camera.Focus = cf
+        setStatus("STATUS: CAMERA FOCUSED")
+    end
+    UI.context.Visible = false
+end)
+
+ctx.teleport.MouseButton1Click:Connect(function()
+    local character = player.Character
+    local targetCFrame
+    local verticalOffset = 4
+
+    if selected:IsA("BasePart") then
+        targetCFrame = selected.CFrame
+        verticalOffset = math.max(selected.Size.Y * 0.5 + 3, 4)
+    elseif selected:IsA("Model") then
+        local boxCFrame, boxSize = selected:GetBoundingBox()
+        targetCFrame = boxCFrame
+        verticalOffset = math.max(boxSize.Y * 0.5 + 3, 4)
+    end
+
+    if character and targetCFrame then
+        local targetPosition = targetCFrame.Position + Vector3.new(0, verticalOffset, 0)
+        character:PivotTo(CFrame.new(targetPosition))
+        setStatus("STATUS: TELEPORTED TO " .. selected.Name)
+    else
+        setStatus("STATUS: TELEPORT TARGET INVALID")
+    end
+
+    UI.context.Visible = false
+end)
+
+ctx.highlight.MouseButton1Click:Connect(function()
+    highlight(selected)
+    setStatus("STATUS: HIGHLIGHTED")
+    UI.context.Visible = false
+end)
+
+ctx.delete.MouseButton1Click:Connect(function()
+    local object = selected
+    UI.context.Visible = false
+    if not object or object == game then return end
+    selected = nil
+    selectedRow = nil
+    clearSelectionVisuals()
+    editingPropertyBox = nil
+    editingPropertyName = nil
+    editingPropertyObject = nil
+    local ok = pcall(function() object:Destroy() end)
+    setStatus(ok and "STATUS: DELETED" or "STATUS: DELETE FAILED")
+    if UI.main.Visible and currentRoot then
+        renderChildren(currentRoot)
+        updateProperties()
+    end
+end)
+
+ctx.inspect.MouseButton1Click:Connect(function()
+    updateProperties()
+    setStatus("STATUS: REMOTE INSPECTED")
+    UI.context.Visible = false
+end)
+
+ctx.refresh.MouseButton1Click:Connect(function()
+    UI.context.Visible = false
+    renderChildren(currentRoot)
+    updateProperties()
+    setStatus("STATUS: REFRESHED")
+end)
+
+local function scheduleTreeRefresh(delayTime)
+    if loadingPaused or alarmActive or refreshQueued or not UI.main.Visible then
+        return
+    end
+    refreshQueued = true
+    task.delay(delayTime or 0.15, function()
+        refreshQueued = false
+        if loadingPaused or alarmActive or not UI.main.Visible then
+            return
+        end
+        renderChildren(currentRoot)
+    end)
+end
+
+function renderChildren(root)
+    if loadingPaused or alarmActive or not UI.main.Visible then
+        return
+    end
+
+    disconnectAll()
+    clear(UI.tree)
+    rowMap = {}
+
+    local function matches(obj)
+        local query = UI.search.Text:lower()
+        if query == "" then
+            return true
+        end
+        local target = searchMode == "NAME" and obj.Name or obj.ClassName
+        return target:lower():find(query, 1, true) ~= nil
+    end
+
+    local function makeRow(obj, depth)
+        if not matches(obj) then
+            return
+        end
+
+        local row = Instance.new("TextButton")
+        row.Size = UDim2.new(1, -4, 0, 30)
+        row.BackgroundColor3 = selected == obj and C.panel3 or C.panel2
+        row.BackgroundTransparency = 0
+        row.BorderSizePixel = 0
+        row.AutoButtonColor = false
+        row.Text = ""
+        row.Parent = UI.tree
+        corner(row, 5)
+        stroke(row, C.line, 1, 0.55)
+        rowMap[obj] = row
+
+        local indent = 6 + depth * 17
+
+        local arrow = button(row, expanded[obj] and "⌄" or "›", UDim2.new(0, 24, 0, 25), UDim2.new(0, indent, 0, 3))
+        arrow.ZIndex = 2
+        arrow.TextSize = 14
+        arrow.TextColor3 = isContainer(obj) and C.text or C.soft
+        arrow.Visible = isContainer(obj)
+
+        local ico = text(row, icon(obj), UDim2.new(0, 20, 1, 0), UDim2.new(0, indent + 27, 0, 0), C.white, Enum.Font.Code)
+        ico.TextXAlignment = Enum.TextXAlignment.Center
+
+        local nameLabel = text(row, obj.Name, UDim2.new(1, -210 - indent, 1, 0), UDim2.new(0, indent + 51, 0, 0), C.text, Enum.Font.Code)
+        nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+
+        local classLabel = text(row, obj.ClassName, UDim2.new(0, 135, 1, 0), UDim2.new(1, -142, 0, 0), C.muted, Enum.Font.Code)
+        classLabel.TextXAlignment = Enum.TextXAlignment.Right
+
+        row.MouseEnter:Connect(function()
+            if selected ~= obj then
+                tween(row, 0.1, {BackgroundColor3 = C.hover})
+            end
+        end)
+
+        row.MouseLeave:Connect(function()
+            if selected ~= obj then
+                tween(row, 0.1, {BackgroundColor3 = C.panel2})
+            end
+        end)
+
+        row.MouseButton1Click:Connect(function()
+            selectObject(obj, row)
+        end)
+
+        row.MouseButton2Click:Connect(function()
+            showContext(obj)
+        end)
+
+        arrow.MouseButton1Click:Connect(function()
+            expanded[obj] = not expanded[obj] or nil
+            renderChildren(root)
+        end)
+
+        if expanded[obj] then
+            local children = obj:GetChildren()
+            table.sort(children, function(a, b)
+                local ac = a.ClassName
+                local bc = b.ClassName
+                if ac == bc then
+                    return a.Name:lower() < b.Name:lower()
+                end
+                return ac < bc
+            end)
+
+            for _, child in ipairs(children) do
+                makeRow(child, depth + 1)
+            end
+        end
+    end
+
+    local children = root:GetChildren()
+    table.sort(children, function(a, b)
+        local ac = a.ClassName
+        local bc = b.ClassName
+        if ac == bc then
+            return a.Name:lower() < b.Name:lower()
+        end
+        return ac < bc
+    end)
+
+    for _, child in ipairs(children) do
+        makeRow(child, 0)
+    end
+
+    UI.tree.CanvasSize = UDim2.new(0, 0, 0, UI.treeLayout.AbsoluteContentSize.Y + 10)
+    UI.breadcrumb.Text = "ROOT: " .. root.Name .. "  |  " .. #children .. " CHILDREN"
+    setStatus("STATUS: READY")
+
+    connections[#connections + 1] = root.ChildAdded:Connect(function()
+        scheduleTreeRefresh(0.2)
+    end)
+
+    connections[#connections + 1] = root.ChildRemoved:Connect(function()
+        scheduleTreeRefresh(0.2)
+    end)
+end
+
+local function serviceButton(name, service)
+    local b = button(UI.serviceList, "  " .. icon(service) .. "   " .. name, UDim2.new(1, -4, 0, 32))
+    b.TextXAlignment = Enum.TextXAlignment.Left
+    serviceButtons[service] = b
+
+    b.MouseButton1Click:Connect(function()
+        if loadingPaused or alarmActive then
+            return
+        end
+        currentRoot = service
+        expanded = {}
+        UI.breadcrumb.Text = "ROOT: " .. service:GetFullName()
+
+        for _, item in pairs(serviceButtons) do
+            item.BackgroundColor3 = C.panel2
+        end
+        b.BackgroundColor3 = C.panel3
+
+        selectObject(service, nil)
+        renderChildren(service)
+    end)
+end
+
+UI.openExplorer.MouseButton1Click:Connect(function()
+    if not welcomeShown then return end
+    welcomeShown = false
+    UI.launcher:Destroy()
+    showModuleMenu()
+    UI.mmStatus.Text = "STATUS: MODULE MENU"
+end)
+
+local MarketplaceService = game:GetService("MarketplaceService")
+local TeleportService = game:GetService("TeleportService")
+
+local function showPanel(panel, titleText)
+    UI.moduleMenu.Visible = false
+    UI.main.Visible = false
+    UI.universePanel.Visible = false
+    UI.remotePanel.Visible = false
+    panel.Parent = gui
+    panel.Visible = true
+    UI.activeWindow = {panel=panel,title=titleText}
+    UI.hiddenWindow = nil
+    UI.mini.Visible = false
+end
+
+function showModuleMenu()
+    UI.moduleMenu.Parent = gui
+    UI.moduleMenu.Visible = true
+    UI.main.Visible = false
+    UI.universePanel.Visible = false
+    UI.remotePanel.Visible = false
+    UI.activeWindow = {panel=UI.moduleMenu,title="USURE INSTANCE"}
+    UI.hiddenWindow = nil
+    UI.mini.Visible = false
+    moduleMenuOpen = true
+end
+
+function showExplorer()
+    UI.moduleMenu.Visible = false
+    UI.universePanel.Visible = false
+    UI.remotePanel.Visible = false
+    UI.main.Visible = true
+    UI.activeWindow = {panel=UI.main,title="EXPLORER"}
+    UI.hiddenWindow = nil
+    UI.mini.Visible = false
+    moduleMenuOpen = false
+    watchdogArmed = true
+    loadingPaused = false
+    alarmActive = false
+    if not refreshQueued then renderChildren(currentRoot); updateProperties() end
+end
+
+local function addUvBlock(titleText, valueText)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1,-8,0,34)
+    row.BackgroundColor3 = C.panel2
+    row.BorderSizePixel = 0
+    row.Parent = UI.uvBody
+    stroke(row, C.line, 1, 0.32)
+    text(row, titleText, UDim2.new(0,150,1,0), UDim2.new(0,10,0,0), C.muted, Enum.Font.Code)
+    local valueLabel = text(row, tostring(valueText), UDim2.new(1,-170,1,0), UDim2.new(0,160,0,0), C.text, Enum.Font.Code)
+    valueLabel.TextTruncate = Enum.TextTruncate.AtEnd
+end
+
+local function loadUniverseInfo()
+    clear(UI.uvBody)
+    local ok, info = pcall(function() return MarketplaceService:GetProductInfo(game.PlaceId, Enum.InfoType.Asset) end)
+    local name = ok and tostring(info.Name or "Unknown Place") or "Unknown Place"
+    local description = ok and tostring(info.Description or "No description available.") or "No description available."
+    local created = ok and tostring(info.Created or "Unknown") or "Unknown"
+    local updated = ok and tostring(info.Updated or "Unknown") or "Unknown"
+    UI.uvName.Text = name
+    UI.uvDesc.Text = description == "" and "No description available." or description
+    UI.uvIds.Text = "PLACE: "..tostring(game.PlaceId).."   UNIVERSE: "..tostring(game.GameId)
+    UI.uvCreated.Text = "CREATED: "..created.."    UPDATED: "..updated
+    UI.uvStats.Text = "PLAYERS: "..tostring(#Players:GetPlayers()).." / "..tostring(Players.MaxPlayers)
+    addUvBlock("PLACE ID", game.PlaceId)
+    addUvBlock("UNIVERSE ID", game.GameId)
+    addUvBlock("NAME", name)
+    addUvBlock("CREATED", created)
+    addUvBlock("UPDATED", updated)
+    addUvBlock("VISITS", "Client API unavailable")
+    addUvBlock("CURRENT ONLINE", tostring(#Players:GetPlayers()))
+    addUvBlock("SERVER CAPACITY", tostring(Players.MaxPlayers))
+    UI.uvBody.CanvasSize = UDim2.new(0,0,0,UI.uvBodyLayout.AbsoluteContentSize.Y+10)
+    UI.uvStatus.Text = "STATUS: OVERVIEW READY"
+end
+
+local function showUvOverview()
+    UI.uvOverviewTab.BackgroundColor3 = C.panel3
+    UI.uvServersTab.BackgroundColor3 = C.panel2
+    UI.uvSubplacesTab.BackgroundColor3 = C.panel2
+    loadUniverseInfo()
+end
+
+local function showUvServers()
+    UI.uvOverviewTab.BackgroundColor3 = C.panel2
+    UI.uvServersTab.BackgroundColor3 = C.panel3
+    UI.uvSubplacesTab.BackgroundColor3 = C.panel2
+    clear(UI.uvBody)
+    local header = text(UI.uvBody,"LIVE SERVER",UDim2.new(1,-20,0,24),UDim2.new(0,10,0,8),C.white,Enum.Font.Code)
+    header.TextSize = 14
+    addUvBlock("JOB ID", game.JobId == "" and "Unavailable in Studio" or game.JobId)
+    addUvBlock("PLAYERS", tostring(#Players:GetPlayers()).." / "..tostring(Players.MaxPlayers))
+    addUvBlock("SERVER TYPE", game.JobId == "" and "Studio / local session" or "Live session")
+    local note = text(UI.uvBody,"PUBLIC SERVER ENUMERATION REQUIRES A SUPPORTED SERVER-SIDE OR WEB API SOURCE. KNOWN JOB IDS CAN STILL BE JOINED BELOW.",UDim2.new(1,-20,0,42),UDim2.new(0,10,0,122),C.soft,Enum.Font.Code)
+    note.TextWrapped = true
+    UI.uvJobBox = input(UI.uvBody,"JOB ID",UDim2.new(0,360,0,32),UDim2.new(0,10,0,174))
+    UI.uvJobBox.Text = game.JobId
+    UI.uvJoinJob = button(UI.uvBody,"JOIN SERVER",UDim2.new(0,130,0,32),UDim2.new(0,378,0,174))
+    UI.uvJoinJob.MouseButton1Click:Connect(function()
+        if UI.uvJobBox.Text ~= "" then TeleportService:TeleportToPlaceInstance(game.PlaceId, UI.uvJobBox.Text, player) end
+    end)
+    UI.uvBody.CanvasSize = UDim2.new(0,0,0,UI.uvBodyLayout.AbsoluteContentSize.Y+10)
+    UI.uvStatus.Text = "STATUS: SERVERS"
+end
+
+local function showUvSubplaces()
+    UI.uvOverviewTab.BackgroundColor3 = C.panel2
+    UI.uvServersTab.BackgroundColor3 = C.panel2
+    UI.uvSubplacesTab.BackgroundColor3 = C.panel3
+    clear(UI.uvBody)
+    local header = text(UI.uvBody,"KNOWN / MANUAL SUBPLACES",UDim2.new(1,-20,0,24),UDim2.new(0,10,0,8),C.white,Enum.Font.Code)
+    header.TextSize = 14
+    addUvBlock("CURRENT PLACE", tostring(game.PlaceId))
+    addUvBlock("UNIVERSE", tostring(game.GameId))
+    local note = text(UI.uvBody,"PLACE ENUMERATION IS NOT EXPOSED BY THE STANDARD CLIENT API. ENTER A KNOWN SUBPLACE / PLACE ID TO OPEN IT.",UDim2.new(1,-20,0,42),UDim2.new(0,10,0,112),C.soft,Enum.Font.Code)
+    note.TextWrapped = true
+    UI.uvSubId = input(UI.uvBody,"SUBPLACE / PLACE ID",UDim2.new(0,360,0,32),UDim2.new(0,10,0,164))
+    UI.uvJoinSub = button(UI.uvBody,"JOIN PLACE",UDim2.new(0,120,0,32),UDim2.new(0,378,0,164))
+    UI.uvCopySub = button(UI.uvBody,"COPY ID",UDim2.new(0,100,0,32),UDim2.new(0,506,0,164))
+    UI.uvJoinSub.MouseButton1Click:Connect(function()
+        local id = tonumber(UI.uvSubId.Text)
+        if id then TeleportService:Teleport(id, player) end
+    end)
+    UI.uvCopySub.MouseButton1Click:Connect(function() if UI.uvSubId.Text ~= "" then copyText(UI.uvSubId.Text) end end)
+    UI.uvBody.CanvasSize = UDim2.new(0,0,0,UI.uvBodyLayout.AbsoluteContentSize.Y+10)
+    UI.uvStatus.Text = "STATUS: SUBPLACES"
+end
+
+local function populateRemoteBrowser()
+    clear(UI.rbList)
+    local q = UI.rbSearch.Text:lower()
+    local found = 0
+    local roots = {workspace, ReplicatedStorage, game:GetService("ReplicatedFirst"), Players}
+    for _, root in ipairs(roots) do
+        for _, obj in ipairs(root:GetDescendants()) do
+            if (obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")) and (q == "" or obj.Name:lower():find(q,1,true)) then
+                found += 1
+                local row = button(UI.rbList, "  " .. (obj:IsA("RemoteEvent") and "EVENT" or "FUNCTION") .. "   " .. obj:GetFullName(), UDim2.new(1,-6,0,32))
+                row.TextXAlignment = Enum.TextXAlignment.Left
+                row.MouseButton2Click:Connect(function()
+                    copyText(obj:GetFullName())
+                end)
+            end
+        end
+    end
+    UI.rbList.CanvasSize = UDim2.new(0,0,0,UI.rbLayout.AbsoluteContentSize.Y+10)
+    UI.rbNote.Text = "READ ONLY  //  " .. tostring(found) .. " remotes found  //  right click copies path"
+end
+
+installWindowControls(UI.moduleMenu,"USURE INSTANCE",UI.moduleMenu)
+installWindowControls(UI.remotePanel,"REMOTE SPY",UI.remotePanel)
+UI.uvHide.MouseButton1Click:Connect(function() UI.activeWindow={panel=UI.universePanel,title="UNIVERSE VIEWER"}; hideActiveWindow() end)
+UI.uvClose.MouseButton1Click:Connect(function() closeWindow(UI.universePanel) end)
+moduleExplorer.MouseButton1Click:Connect(showExplorer)
+moduleUniverse.MouseButton1Click:Connect(function() showPanel(UI.universePanel,"UNIVERSE VIEWER"); showUvOverview() end)
+moduleRemote.MouseButton1Click:Connect(function() showPanel(UI.remotePanel,"REMOTE SPY"); populateRemoteBrowser() end)
+UI.uvBack.MouseButton1Click:Connect(showModuleMenu)
+UI.rbBack.MouseButton1Click:Connect(showModuleMenu)
+UI.uvOverviewTab.MouseButton1Click:Connect(showUvOverview)
+UI.uvServersTab.MouseButton1Click:Connect(showUvServers)
+UI.uvSubplacesTab.MouseButton1Click:Connect(showUvSubplaces)
+UI.uvCopyPlace.MouseButton1Click:Connect(function() copyText(tostring(game.PlaceId)) end)
+UI.rbSearch:GetPropertyChangedSignal("Text"):Connect(populateRemoteBrowser)
+
+local services = {
+    {"Workspace", workspace},
+    {"ReplicatedStorage", ReplicatedStorage},
+    {"Players", Players},
+    {"Lighting", Lighting},
+    {"ReplicatedFirst", game:GetService("ReplicatedFirst")},
+    {"SoundService", SoundService},
+    {"StarterGui", StarterGui},
+    {"StarterPack", StarterPack},
+    {"StarterPlayer", StarterPlayer},
+    {"ServerStorage", game:GetService("ServerStorage")},
+    {"ServerScriptService", game:GetService("ServerScriptService")}
+}
+
+for _, item in ipairs(services) do
+    serviceButton(item[1], item[2])
+end
+
+serviceButtons[workspace].BackgroundColor3 = C.panel3
+
+UI.search:GetPropertyChangedSignal("Text"):Connect(function()
+    if loadingPaused or alarmActive then
+        return
+    end
+    scheduleTreeRefresh(0.08)
+end)
+
+UI.mode.MouseButton1Click:Connect(function()
+    if loadingPaused or alarmActive then
+        return
+    end
+    searchMode = searchMode == "NAME" and "CLASS" or "NAME"
+    UI.mode.Text = searchMode
+    UI.search.PlaceholderText = searchMode == "NAME" and "SEARCH // NAME..." or "SEARCH // CLASS..."
+    renderChildren(currentRoot)
+end)
+
+UI.propSearch:GetPropertyChangedSignal("Text"):Connect(function()
+    propertyQuery = UI.propSearch.Text
+    updateProperties()
+end)
+
+UI.settingsButton.MouseButton1Click:Connect(function()
+    settingsPanel.Visible = not settingsPanel.Visible
+    if settingsPanel.Visible then
+        UI.activeWindow = {panel=settingsPanel,title="SETTINGS"}
+        UI.hiddenWindow = nil
+        UI.mini.Visible = false
+    elseif UI.activeWindow and UI.activeWindow.panel == settingsPanel then
+        UI.activeWindow = nil
+    end
+end)
+
+guardToggle.MouseButton1Click:Connect(function()
+    watchdogEnabled = not watchdogEnabled
+    guardToggle.Text = watchdogEnabled and "GUARD: ON" or "GUARD: OFF"
+    settingsState.Text = watchdogEnabled and "ARMED" or "DISABLED"
+    watchdogLowTime = 0
+end)
+
+settingsApply.MouseButton1Click:Connect(function()
+    applyWatchdogSettings()
+    closeSettings()
+end)
+
+settingsReset.MouseButton1Click:Connect(function()
+    watchdogEnabled = true
+    watchdogFpsThreshold = 30
+    watchdogDuration = 2
+    fpsBox.Text = "30"
+    durationBox.Text = "2.0"
+    guardToggle.Text = "GUARD: ON"
+    settingsState.Text = "ARMED"
+    watchdogLowTime = 0
+    closeSettings()
+    setStatus("STATUS: GUARD RESET")
+end)
+
+UI.refresh.MouseButton1Click:Connect(function()
+    if loadingPaused or alarmActive then
+        return
+    end
+    renderChildren(currentRoot)
+    updateProperties()
+    setStatus("STATUS: REFRESHED")
+end)
+
+UserInputService.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 and settingsPanel.Visible then
+        local p = UserInputService:GetMouseLocation()
+        local pos = settingsPanel.AbsolutePosition
+        local size = settingsPanel.AbsoluteSize
+        if p.X < pos.X or p.X > pos.X + size.X or p.Y < pos.Y or p.Y > pos.Y + size.Y then
+            settingsPanel.Visible = false
+        end
+    end
+
+    if input.UserInputType == Enum.UserInputType.MouseButton1 and UI.context.Visible then
+        local p = UserInputService:GetMouseLocation()
+        local pos = UI.context.AbsolutePosition
+        local size = UI.context.AbsoluteSize
+        if p.X < pos.X or p.X > pos.X + size.X or p.Y < pos.Y or p.Y > pos.Y + size.Y then
+            UI.context.Visible = false
+        end
+    end
+end)
+
+UI.top.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 and not minimized then
+        local x = input.Position.X
+        if x < UI.dockRight.AbsolutePosition.X - 6 then
+            dragging = true
+            dragStart = input.Position
+            startPosition = UI.main.Position
+        end
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        if miniDragging then
+            local d = input.Position - miniDragStart
+            if math.abs(d.X) > 3 or math.abs(d.Y) > 3 then
+                miniMoved = true
+                miniHasCustomPosition = true
+            end
+            UI.mini.Position = UDim2.new(miniStartPosition.X.Scale, miniStartPosition.X.Offset + d.X, miniStartPosition.Y.Scale, miniStartPosition.Y.Offset + d.Y)
+            if miniMoved then
+                miniSavedPosition = UI.mini.Position
+            end
+        end
+
+        if dragging then
+            local d = input.Position - dragStart
+            UI.main.Position = UDim2.new(startPosition.X.Scale, startPosition.X.Offset + d.X, startPosition.Y.Scale, startPosition.Y.Offset + d.Y)
+        end
+
+        if resizing then
+            local d = input.Position - resizeStart
+            UI.main.Size = UDim2.new(
+                0,
+                math.clamp(startSize.X.Offset + d.X, 900, math.max(900, viewport.X - 12)),
+                0,
+                math.clamp(startSize.Y.Offset + d.Y, 520, math.max(520, viewport.Y - 12))
+            )
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+        resizing = false
+        miniDragging = false
+    end
+end)
+
+local function setDockedRight(enabled)
+    if enabled and not dockedRight then
+        savedPosition = UI.main.Position
+        savedSize = UI.main.Size
+        dockedRight = true
+        UI.main.Size = UDim2.new(0, math.clamp(430, 360, viewport.X - 18), 1, 0)
+        UI.main.Position = UDim2.new(1, -UI.main.Size.X.Offset, 0, 0)
+        UI.content.Position = UDim2.new(0, 8, 0, 70)
+        UI.content.Size = UDim2.new(1, -16, 1, -78)
+        UI.sidebar.Visible = true
+        UI.sidebar.Size = UDim2.new(0, 138, 1, 0)
+        UI.sidebar.Position = UDim2.new(0, 0, 0, 0)
+        UI.center.Position = UDim2.new(0, 144, 0, 0)
+        UI.center.Size = UDim2.new(1, -144, 1, 0)
+        UI.inspector.Visible = propertyDrawerOpen
+        UI.inspector.Position = UDim2.new(0, propertyDrawerOpen and 0 or -285, 0, 0)
+        UI.inspector.Size = UDim2.new(0, 285, 1, 0)
+        UI.inspector.ZIndex = 120
+        UI.propsToggle.Visible = true
+        UI.title.Text = "USURE INSTANCE"
+        UI.subtitle.Text = "EXPLORER"
+        UI.modes.Visible = false
+        UI.status.Visible = false
+        UI.dockRight.Text = "<<"
+    elseif not enabled and dockedRight then
+        dockedRight = false
+        propertyDrawerOpen = false
+        UI.main.Size = savedSize
+        UI.main.Position = savedPosition
+        UI.content.Position = UDim2.new(0, 10, 0, 70)
+        UI.content.Size = UDim2.new(1, -20, 1, -74)
+        UI.sidebar.Visible = true
+        UI.sidebar.Size = UDim2.new(0, 180, 1, 0)
+        UI.sidebar.Position = UDim2.new(0, 0, 0, 0)
+        UI.center.Position = UDim2.new(0, 190, 0, 0)
+        UI.center.Size = UDim2.new(0, 570, 1, 0)
+        UI.inspector.Visible = true
+        UI.inspector.Position = UDim2.new(0, 770, 0, 0)
+        UI.inspector.Size = UDim2.new(1, -770, 1, 0)
+        UI.inspector.ZIndex = 10
+        UI.propsToggle.Visible = false
+        UI.title.Text = "RIFT // INSTANCE EXPLORER"
+        UI.subtitle.Text = "LOCAL INSTANCE TREE  |  ADMIN CONSOLE"
+        UI.modes.Visible = true
+        UI.status.Visible = true
+        UI.dockRight.Text = ">>"
+    end
+end
+
+local function setPropertyDrawer(enabled)
+    propertyDrawerOpen = enabled
+    if dockedRight then
+        UI.inspector.Visible = true
+        UI.propsToggle.Text = enabled and "P-" or "P+"
+        tween(UI.inspector, 0.2, {Position = UDim2.new(0, enabled and 0 or -285, 0, 0)})
+    end
+end
+
+UI.dockRight.MouseButton1Click:Connect(function()
+    setDockedRight(not dockedRight)
+end)
+
+UI.propsToggle.MouseButton1Click:Connect(function()
+    setPropertyDrawer(not propertyDrawerOpen)
+end)
+
+local function closeSettings()
+    settingsPanel.Visible = false
+end
+
+local function applyWatchdogSettings()
+    local fps = tonumber(fpsBox.Text)
+    local duration = tonumber(durationBox.Text)
+    watchdogFpsThreshold = math.clamp(fps or 30, 5, 240)
+    watchdogDuration = math.clamp(duration or 2, 0.5, 30)
+    fpsBox.Text = tostring(watchdogFpsThreshold)
+    durationBox.Text = string.format("%.1f", watchdogDuration)
+    watchdogLowTime = 0
+    watchdogCooldown = 0
+    settingsState.Text = watchdogEnabled and "ARMED" or "DISABLED"
+    setStatus("STATUS: GUARD " .. (watchdogEnabled and "ON" or "OFF") .. " | " .. tostring(watchdogFpsThreshold) .. " FPS / " .. string.format("%.1fs", watchdogDuration))
+end
+
+local function triggerPerformanceAlarm()
+    if alarmActive or not watchdogArmed then
+        return
+    end
+
+    alarmActive = true
+    loadingPaused = true
+    watchdogLowTime = 0
+    disconnectAll()
+    UI.context.Visible = false
+    settingsPanel.Visible = false
+    UI.main.Visible = false
+    minimized = false
+    UI.mini.Text = "ALARM"
+    UI.mini.TextSize = 10
+    UI.mini.Visible = true
+    UI.alarmText.Text = string.format("FPS < %d for %.1fs  //  LOADING HALTED", watchdogFpsThreshold, watchdogDuration)
+    UI.alarmPanel.Visible = true
+end
+
+local function restoreAfterAlarm()
+    alarmActive = false
+    loadingPaused = false
+    watchdogLowTime = 0
+    watchdogCooldown = 5
+    minimized = false
+    UI.alarmPanel.Visible = false
+    UI.mini.Text = "UI"
+    UI.mini.TextSize = 13
+    UI.mini.Visible = false
+    UI.main.Visible = true
+    scheduleTreeRefresh(0)
+    updateProperties()
+end
+
+local function updatePerformanceGuardSample(fps, elapsed)
+    if not watchdogArmed or not watchdogEnabled or alarmActive then
+        return
+    end
+    if watchdogCooldown > 0 then
+        watchdogCooldown = math.max(0, watchdogCooldown - elapsed)
+        watchdogLowTime = 0
+        return
+    end
+    if fps < watchdogFpsThreshold then
+        watchdogLowTime += elapsed
+        if watchdogLowTime >= watchdogDuration then
+            triggerPerformanceAlarm()
+        end
+    else
+        watchdogLowTime = 0
+    end
+end
+
+local function startPerformanceSampler()
+    if performanceSampling then return end
+    performanceSampling = true
+    task.spawn(function()
+        local last = os.clock()
+        while performanceSampling and gui.Parent do
+            task.wait(0.75)
+            local now = os.clock()
+            local elapsed = math.max(0.25, now - last)
+            last = now
+            local fps = workspace:GetRealPhysicsFPS()
+            updatePerformanceGuardSample(fps, elapsed)
+        end
+    end)
+end
+
+local function minimizeToSquare()
+    if minimized then return end
+    minimized = true
+    loadingPaused = true
+    refreshQueued = false
+    disconnectAll()
+    UI.main.Visible = false
+    UI.mini.Text = "UI"
+    UI.mini.TextSize = 13
+    UI.mini.Visible = true
+    if miniSavedPosition then
+        UI.mini.Position = miniSavedPosition
+    elseif not miniHasCustomPosition then
+        UI.mini.Position = UDim2.new(0.5, -UI.mini.Size.X.Offset / 2, 0.5, -15)
+    end
+end
+
+local function restoreFromSquare()
+    if alarmActive then
+        restoreAfterAlarm()
+        return
+    end
+    if not minimized then return end
+    minimized = false
+    UI.mini.Visible = false
+    UI.main.Visible = true
+    loadingPaused = false
+    if currentRoot then
+        renderChildren(currentRoot)
+    end
+    updateProperties()
+end
+
+UI.minimize.MouseButton1Click:Connect(function()
+    UI.activeWindow={panel=UI.main,title="EXPLORER"}
+    hideActiveWindow()
+end)
+
+UI.mini.MouseButton1Click:Connect(function()
+    if not miniMoved then
+        restoreActiveWindow()
+    end
+end)
+
+UI.mini.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        miniDragging = true
+        miniMoved = false
+        miniDragStart = input.Position
+        miniStartPosition = UI.mini.Position
+    end
+end)
+
+UI.close.MouseButton1Click:Connect(function()
+    watchdogArmed = false
+    loadingPaused = true
+    alarmActive = false
+    disconnectAll()
+    gui:Destroy()
+end)
+
+UI.resizeGrip = Instance.new("TextButton")
+UI.resizeGrip.Size = UDim2.new(0, 25, 0, 25)
+UI.resizeGrip.Position = UDim2.new(1, -28, 1, -28)
+UI.resizeGrip.BackgroundTransparency = 1
+UI.resizeGrip.Text = "◢"
+UI.resizeGrip.TextColor3 = C.muted
+UI.resizeGrip.TextSize = 14
+UI.resizeGrip.ZIndex = 50
+UI.resizeGrip.Parent = UI.main
+
+UI.resizeGrip.MouseButton1Down:Connect(function()
+    resizing = true
+    resizeStart = UserInputService:GetMouseLocation()
+    startSize = UI.main.Size
+end)
+
+
+startPerformanceSampler()
+
+
+от сюда можешь взять explorer , не обязательно делать заставку, жду результат
