@@ -327,7 +327,7 @@ async function topGames(n){
 
 const TABS = [['profile','ПРОФИЛИ'],['friends','ДРУЗЬЯ'],['mod','МОДЕРАЦИЯ'],['charts','CHARTS'],['game','ИГРА'],['blox','BLOXLINK'],['links','ССЫЛКИ'],['ids','ID'],['join','ВХОД'],['robux','КУРС ROBUX'],['market','МАРКЕТПЛЕЙС'],['compare','СРАВНЕНИЕ'],['fav','ЗАКРЕПЛЁННЫЕ']];
 window.CUR = null; window.AUTO = false;
-function rsPush(u){ let l = ls.g('rsearch',[]).filter(x=>x.id!=u.id); l.unshift({id:u.id,n:u.name,t:Date.now()}); ls.s('rsearch', l.slice(0,30)); }
+function rsPush(u){ try{ dbReq('tracked/'+u.id,'PUT',{t:Date.now()}).catch(()=>null); }catch{}  let l = ls.g('rsearch',[]).filter(x=>x.id!=u.id); l.unshift({id:u.id,n:u.name,t:Date.now()}); ls.s('rsearch', l.slice(0,30)); }
 function rsRender(){
   const b = $('#rs'); if (!b) return;
   const l = ls.g('rsearch',[]);
@@ -345,6 +345,72 @@ function route(){
   ({profile:pgProfile,friends:pgFriends,mod:pgMod,charts:pgCharts,game:pgGame,blox:pgBlox,links:pgLinks,ids:pgIds,join:pgJoin,robux:pgRobux,fav:pgFav,market:pgMarket,compare:pgCompare}[tab] || pgProfile)(arg);
   window.scrollTo(0,0);
 }
+
+/* ===== ФОНОВЫЙ СБОР АКТИВНОСТИ И СЛЕЖЕНИЕ ===== */
+const PTYPE = ['офлайн','онлайн','в игре','в Studio','невидим'];
+const watchList = () => ls.g('watch', []);
+const watchHas = id => watchList().some(x => String(x.id)===String(id));
+async function presBatch(ids){
+  const r = await api('presence','/v1/presence/users', post({userIds:ids.map(Number)}));
+  return r.userPresences||[];
+}
+function slotsFrom(p, now){
+  const w = {};
+  if (p.userPresenceType > 0) w[slotOf(now)] = 1;
+  else if (p.lastOnline){ const t = Date.parse(p.lastOnline); if (t && now-t < 7*864e5) w[slotOf(t)] = 1; }
+  return w;
+}
+async function saveActivity(list){
+  const now = Date.now();
+  await Promise.all(list.map(p => { const w = slotsFrom(p, now); return Object.keys(w).length ? dbReq('activity/'+p.userId, 'PATCH', w).catch(()=>null) : null; }));
+}
+/* Фон: пока сайт открыт у кого угодно, каждый клиент берёт случайные 100 из всех искавшихся игроков */
+let BGIDS = [], BGT = 0;
+async function bgCycle(){
+  try{
+    if (Date.now()-BGT > 30*60000 || !BGIDS.length){ const r = await dbGet('tracked','?shallow=true'); BGIDS = Object.keys(r||{}); BGT = Date.now(); }
+    const pool = BGIDS.slice().sort(() => Math.random()-.5).slice(0, 100);
+    for (let i=0;i<pool.length;i+=50){ const l = await presBatch(pool.slice(i,i+50)); await saveActivity(l); }
+    window.BGINFO = `фон: игроков в базе ${BGIDS.length}, проверено ${pool.length}`;
+  }catch(e){ window.BGINFO = 'фон: ошибка '+(e.message||''); }
+}
+setTimeout(() => { bgCycle(); setInterval(bgCycle, 5*60000); }, 8000);
+/* Следить: личный список с быстрым опросом */
+const WST = {};
+function watchToggle(id, n, btn){
+  let l = watchList();
+  if (watchHas(id)){ l = l.filter(x => String(x.id)!==String(id)); toast('Слежение выключено'); if (btn) btn.textContent = 'Следить'; }
+  else { l.push({id:String(id), n}); toast('Слежу за '+n); if (btn) btn.textContent = 'Не следить'; try{ if (window.Notification && Notification.permission==='default') Notification.requestPermission(); }catch{} }
+  ls.s('watch', l); watchRestart(); watchTick();
+}
+async function watchTick(){
+  const l = watchList(); if (!l.length){ if (window.WRENDER && $('#wbox')) renderWatch(); return; }
+  try{
+    for (let i=0;i<l.length;i+=50){
+      const ps = await presBatch(l.slice(i,i+50).map(x=>x.id)); await saveActivity(ps);
+      ps.forEach(p => {
+        const x = l.find(y => String(y.id)===String(p.userId)), old = WST[p.userId];
+        const st = {t:p.userPresenceType, loc:p.lastLocation||'', pl:p.rootPlaceId||p.placeId||'', lo:p.lastOnline||'', at:Date.now()};
+        if (old && (old.t!==st.t || (st.t===2 && old.pl!==st.pl))){
+          const msg = `${x?x.n:p.userId}: ${PTYPE[st.t]||'?'}${st.loc?' · '+st.loc:''}`;
+          toast(msg); try{ if (window.Notification && Notification.permission==='granted') new Notification('RoboTrace', {body:msg}); }catch{}
+        }
+        WST[p.userId] = st;
+      });
+    }
+  }catch{}
+  if ($('#wbox')) renderWatch();
+}
+function watchInt(v){ ls.s('wint', +v); watchRestart(); }
+function watchRestart(){ clearInterval(window.WT); if (watchList().length) window.WT = setInterval(watchTick, Math.max(15, +ls.g('wint',60))*1000); }
+function renderWatch(){
+  const b = $('#wbox'); if (!b) return; const l = watchList();
+  if ($('#wcnt')) $('#wcnt').textContent = (window.BGINFO||'') + (l.length ? ` · слежу за ${l.length}` : '');
+  b.innerHTML = l.length ? `<div class="tw"><table><thead><tr><th>ИГРОК</th><th>СТАТУС</th><th>ГДЕ</th><th>БЫЛ В СЕТИ</th><th></th></tr></thead><tbody>`+
+    l.map(x => { const s = WST[x.id]; return `<tr><td><a class="tag" onclick="act('profile','${esc(x.id)}')">${esc(x.n)}</a></td><td>${s?(s.t>0?`<span class="ok">${PTYPE[s.t]}</span>`:PTYPE[s.t]||'?'):'…'}</td><td>${s?esc(s.loc)||'—':''}${s&&s.pl?` <a class="btn sm" href="${joinUrl(s.pl)}">Зайти</a>`:''}</td><td>${s&&s.lo?new Date(s.lo).toLocaleString('ru-RU'):'—'}</td><td><button class="sm" data-n="${esc(x.n)}" onclick="watchToggle('${esc(x.id)}',this.dataset.n)">Убрать</button></td></tr>`; }).join('')+`</tbody></table></div>`
+    : '<div class="msg">Пусто. Откройте профиль игрока и нажмите «Следить»</div>';
+}
+watchRestart(); if (watchList().length) setTimeout(watchTick, 3000);
 addEventListener('hashchange', route);
 
 async function userTab(tab, arg, render, root){
@@ -417,6 +483,43 @@ async function avatarBig(id){
   }
   throw new Error('no avatar');
 }
+
+function lkIcon(t){ return ({Discord:'💬',Twitter:'🐦',YouTube:'▶',Twitch:'🎮',Facebook:'📘',Guilded:'🛡',Roblox:'🧱'})[t]||'🔗'; }
+function findDiscord(txt){
+  const out = new Set();
+  (txt.match(/(?:https?:\/\/)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/[\w-]+/gi)||[]).forEach(x => out.add(/^https?:/i.test(x) ? x : 'https://'+x));
+  return [...out];
+}
+function tagList(items){ return items.map(x => `<a class="tag" target="_blank" rel="noopener" href="${esc(x.url)}">${lkIcon(x.type)} ${esc(x.type)}${x.title?' · '+esc(x.title):''}</a>`).join(''); }
+async function loadLinks(id, desc, el){
+  if (!el) return;
+  let h = '';
+  const dsc = findDiscord(desc);
+  const pc = await api('accountinformation', `/v1/users/${id}/promotion-channels`).catch(() => null);
+  const ch = pc ? [['facebook','Facebook'],['twitter','Twitter'],['youtube','YouTube'],['twitch','Twitch'],['guilded','Guilded']].filter(([k]) => pc[k]).map(([k,t]) => ({type:t, url:/^https?:/i.test(pc[k])?pc[k]:(({Twitter:'https://twitter.com/',Facebook:'https://facebook.com/',YouTube:'https://youtube.com/',Twitch:'https://twitch.tv/',Guilded:'https://guilded.gg/'})[t]+pc[k]), title:pc[k]})) : [];
+  let blox = null;
+  if (BLOX_KEY && BLOX_GUILD){
+    try{ const j = await blReq(`https://api.blox.link/v4/public/guilds/${encodeURIComponent(BLOX_GUILD)}/roblox-to-discord/${id}`); blox = j.discordIDs||[]; }catch{}
+  }
+  h += row('Discord (Bloxlink)', blox===null ? '<span class="msg">Bloxlink не настроен или недоступен</span>' : (blox.length ? blox.map(d=>`<span class="tag">${esc(d)}</span>`).join('') : 'не привязан'));
+  h += row('Discord в описании', dsc.length ? tagList(dsc.map(u=>({type:'Discord', url:u, title:u.replace(/^https?:\/\//,'')}))) : '—');
+  h += row('Соцсети профиля', ch.length ? tagList(ch) : '—');
+  const mt = [...new Set((desc.match(/@[\w.]{2,32}|\b[\w.]{2,32}#\d{4}\b/g)||[]))].slice(0,10);
+  if (mt.length) h += row('Теги в описании', mt.map(t=>`<span class="tag">${esc(t)}</span>`).join(''));
+  el.className = ''; el.innerHTML = h;
+}
+async function loadGameLinks(uni, g, el){
+  if (!el) return;
+  const sl = await api('games', `/v1/games/${uni}/social-links/list`).catch(() => null);
+  const links = (sl?.data||[]).map(x => ({type:x.type, url:x.url, title:x.title}));
+  const dsc = findDiscord(g.description||'').filter(u => !links.some(l => l.url===u));
+  let h = row('Ссылки игры', links.length ? tagList(links) : '—');
+  h += row('Discord в описании', dsc.length ? tagList(dsc.map(u=>({type:'Discord', url:u, title:u.replace(/^https?:\/\//,'')}))) : '—');
+  h += row('Создатель', g.creator ? `<span class="tag">${esc(g.creator.type)} · ${esc(g.creator.name)}${g.creator.hasVerifiedBadge?' ✓':''}</span>` : '—');
+  if (g.creator?.type==='Group') h += `<div class="bar"><a class="btn sm" target="_blank" rel="noopener" href="https://www.roblox.com/groups/${g.creator.id}">Группа</a></div>`;
+  else if (g.creator?.type==='User') h += `<div class="bar"><button class="sm" onclick="act('profile','${g.creator.id}')">Профиль создателя</button></div>`;
+  el.className = ''; el.innerHTML = h;
+}
 async function pgProfile(arg, root){ userTab('profile', arg, async (u, out) => {
   const id = u.id, cid = cidGet();
   out.innerHTML = panel('ПРОФИЛЬ',esc(u.name),
@@ -427,8 +530,9 @@ async function pgProfile(arg, root){ userTab('profile', arg, async (u, out) => {
     ${row('искали в RoboTrace','<span id="psc" class="sk">00 чел.</span>')}
     ${row('друзья','<span id="pfc" class="sk">000</span>')}${row('подписчики','<span id="pfo" class="sk">000</span>')}${row('подписки','<span id="pfi" class="sk">000</span>')}
     <div style="margin-top:14px" class="bar"><button onclick="act('friends','${id}')">Друзья</button><button onclick="act('mod','${id}')">Модерация</button><button onclick="act('blox','${id}')">Bloxlink</button>
-    <button data-n="${esc(u.name)}" onclick="fav('p','${id}',this.dataset.n)">Закрепить</button><a class="btn" target="_blank" rel="noopener" href="https://www.roblox.com/users/${id}/profile">Roblox</a><button onclick="cp(location.href.split('#')[0]+'#/profile/${id}')">Ссылка</button><button onclick="cp('${id}')">Копировать ID</button></div></div></div>`)+
+    <button data-n="${esc(u.name)}" onclick="fav('p','${id}',this.dataset.n)">Закрепить</button><button data-n="${esc(u.name)}" onclick="watchToggle('${id}',this.dataset.n,this)">${watchHas(id)?'Не следить':'Следить'}</button><a class="btn" target="_blank" rel="noopener" href="https://www.roblox.com/users/${id}/profile">Roblox</a><button onclick="cp(location.href.split('#')[0]+'#/profile/${id}')">Ссылка</button><button onclick="cp('${id}')">Копировать ID</button></div></div></div>`)+
   panel('ОПИСАНИЕ','',`<div class="desc">${esc(u.description)||'—'}</div>`)+
+  panel('ПРИВЯЗКИ · DISCORD И СОЦСЕТИ','',`<div id="plk" class="msg">загрузка…</div>`)+
   panel('ДРУЗЬЯ','','<div id="pfr"></div>')+
   panel('ЗАМЕТКА','',`<textarea id="pnote" rows="3" placeholder="Личная заметка об игроке (хранится только в этом браузере)" style="width:100%;background:#0a0a0a;border:1px solid var(--ln);color:var(--tx);padding:11px 13px;font:inherit">${esc(ls.g('note'+id,''))}</textarea>`)+
   `<div class="g2">`+
@@ -455,6 +559,7 @@ async function pgProfile(arg, root){ userTab('profile', arg, async (u, out) => {
   activityTrack(id);
   countryFromActivity(id).then(c => put('#pctry', c)).catch(() => put('#pctry','Информация не обновлена'));
   loadExtra(id, out);
+  loadLinks(id, u.description||'', S('#plk'));
 }, root);}
 
 async function scanGame(place, target, pages, sg){
@@ -786,6 +891,7 @@ async function pgGame(arg, root){
         ${row('создатель',esc(g.creator?.name))}${row('жанр',esc(g.genre||'—'))}${row('создана',dt(g.created))}${row('обновлена',dt(g.updated))}${row('universe id',uni)}`)+
       panel('РЕЙТИНГ И ОПИСАНИЕ','',`<div class="rate"><i style="width:${pct}%"></i></div><div class="lbl">${pct}% ПОЛОЖИТЕЛЬНЫХ${v?` · за ${fmt(v.upVotes)} · против ${fmt(v.downVotes)}`:''}</div>
         <p class="lbl" style="margin-top:18px">ОПИСАНИЕ</p><div class="desc">${esc(g.description)}</div>`)+`</div>`+
+      panel('ПРИВЯЗКИ · DISCORD И ССЫЛКИ ИГРЫ','',`<div id="glk" class="msg">загрузка…</div>`)+
       panel('СТАТИСТИКА ОНЛАЙНА','Замеры копятся в вашем браузере, пока вкладка открыта (раз в 30 сек)',`<div id="ost"></div>`)+
       (pl?.data?.length ? panel('SUBPLACES',`всего: ${pl.data.length}`,`<div class="tw" style="max-height:440px;overflow:auto"><table><thead><tr><th></th><th>NAME</th><th>PLACE ID</th><th>ДЕЙСТВИЯ</th></tr></thead><tbody>`+
         pl.data.map(p=>`<tr><td><img class="ico" src="${esc(pic[p.id]||'')}" alt=""></td><td>${esc(p.name)}${p.id==place?' <span class="tag">текущий</span>':''}</td><td>${p.id}</td>
@@ -805,6 +911,7 @@ async function pgGame(arg, root){
         <div class="pb"><div class="bar"><select id="pt" style="flex:none"><option value="private-servers">Private (VIP)</option><option value="servers/Friend">Серверы друзей</option></select><button onclick="loadPrivate()">Загрузить</button></div><div id="prvm"></div>
         <div class="tw"><table><thead><tr><th>JOB ID</th><th>ИГРОКИ</th><th>ПИНГ</th><th>FPS</th><th>СТРАНА</th><th>ДЕЙСТВИЯ</th></tr></thead><tbody id="prv"></tbody></table></div></div></section>`;
     window.HIST = h; paintOnline(g.playing, h);
+    loadGameLinks(uni, g, box.querySelector('#glk'));
     window.SRV = {place, cursor:'', all:[], av:{}, target:'', tkey:'', hits:new Set(), priv:[], page:1, cc:ls.g('srvcc',{}), ccTry:{}, ccFail:0, ccBusy:false, ccN:0};
     $('#sauto').onchange = e => { clearInterval(window.SA); if (e.target.checked) window.SA = setInterval(reloadServers, 30000); };
     $('#more').onclick = loadServers; $('#spl').onchange = e => setPlace(e.target.value);
@@ -1258,10 +1365,13 @@ function unfav(k, id){ const w = ls.g('wl',{p:[],g:[]}); w[k] = w[k].filter(x =>
 async function pgFav(){
   const w = ls.g('wl',{p:[],g:[]});
   const card = (k,x) => `<div class="card pc" onclick="act('${k==='p'?'profile':'game'}','${esc(x.id)}')" id="${k}${esc(x.id)}"><div class="sk"></div><b>${esc(x.n)}</b><div class="ps">загрузка</div><button class="sm" onclick="event.stopPropagation();unfav('${k}','${esc(x.id)}')">Открепить</button></div>`;
+  window.WRENDER = renderWatch;
   $('#app').innerHTML = `<div class="bar"><button onclick="exportFav()">Экспорт JSON</button><button onclick="importFav()">Импорт JSON</button></div>`+
-    panel('ЗАКРЕПЛЁННЫЕ ПРОФИЛИ','',`<div class="grid pin">${w.p.map(x=>card('p',x)).join('')||'<div class="msg">Нет закреплённых. Нажмите «Закрепить» в профиле</div>'}</div>`)+
+    panel('СЛЕЖЕНИЕ · ОБНОВЛЕНИЕ В РЕАЛЬНОМ ВРЕМЕНИ','',`<div class="bar"><label>интервал <select id="wint" style="flex:none" onchange="watchInt(this.value)"><option value="30">30 сек</option><option value="60">1 мин</option><option value="120">2 мин</option><option value="300">5 мин</option></select></label><span class="msg" id="wcnt"></span></div><div id="wbox"></div>`)+
+        panel('ЗАКРЕПЛЁННЫЕ ПРОФИЛИ','',`<div class="grid pin">${w.p.map(x=>card('p',x)).join('')||'<div class="msg">Нет закреплённых. Нажмите «Закрепить» в профиле</div>'}</div>`)+
     panel('ЗАКРЕПЛЁННЫЕ ИГРЫ','',`<div class="grid pin">${w.g.map(x=>card('g',x)).join('')||'<div class="msg">Нет закреплённых. Нажмите «Закрепить» на странице игры</div>'}</div>`);
   const fill = (id, img, html) => { const e = $('#'+id); if (!e) return; const im = e.firstElementChild; if (img) im.outerHTML = `<img src="${esc(img)}" alt="">`; e.querySelector('.ps').innerHTML = html; };
+  $('#wint').value = String(ls.g('wint',60)); renderWatch();
   const hs = await heads(w.p.map(x=>x.id));
   w.p.forEach(async x => {
     const [u,f,fo,fi] = await Promise.allSettled([api('users','/v1/users/'+x.id), api('friends',`/v1/users/${x.id}/friends/count`), api('friends',`/v1/users/${x.id}/followers/count`), api('friends',`/v1/users/${x.id}/followings/count`)]);
