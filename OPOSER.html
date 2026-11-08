@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Paste</title>
+<style>
+:root{--bg:#0b0b0d;--panel:#121216;--line:#23232a;--text:#e6e6ea;--mute:#8a8a96;--acc:#ff3b3b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif}
+header{display:flex;align-items:center;justify-content:space-between;padding:16px 28px;border-bottom:1px solid var(--line);background:var(--panel)}
+.logo{font-weight:800;letter-spacing:.5px;color:var(--text);text-decoration:none;font-size:18px}
+.logo b{color:var(--acc)}
+main{max-width:1000px;margin:32px auto;padding:0 20px}
+input,textarea{width:100%;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:12px 14px;font:inherit;outline:none;transition:border-color .15s}
+input:focus,textarea:focus{border-color:var(--acc)}
+textarea{height:460px;resize:vertical;font:13px/1.55 ui-monospace,Consolas,monospace;tab-size:4;white-space:pre;margin-top:14px}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button,.btn{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 18px;font:inherit;cursor:pointer;text-decoration:none;transition:all .15s;display:inline-block}
+button:hover,.btn:hover{border-color:var(--acc);color:var(--acc)}
+button:disabled{opacity:.5;cursor:default}
+.primary{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+.primary:hover{background:#ff5555;border-color:#ff5555;color:#fff}
+.danger:hover{background:var(--acc);color:#fff}
+.meta{color:var(--mute);font-size:13px;margin:4px 0 18px}
+h1{margin:0;font-size:24px;word-break:break-word}
+.code{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:auto;max-height:70vh}
+.code pre{margin:0;padding:14px;font:13px/1.55 ui-monospace,Consolas,monospace}
+.gut{color:var(--mute);text-align:right;border-right:1px solid var(--line);user-select:none;position:sticky;left:0;background:var(--panel)}
+.err{color:var(--acc);margin-top:12px}
+</style>
+</head>
+<body>
+<header>
+<a class="logo" href="./">PASTE<b>.</b></a>
+<a class="btn" href="./">Новая</a>
+</header>
+<main id="app"></main>
+<script>
+var API="https://ТВОЙ-ВОРКЕР.workers.dev";
+var app=document.getElementById("app");
+var id=new URLSearchParams(location.search).get("id")||"";
+
+function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e}
+
+function copy(t,b){
+navigator.clipboard.writeText(t).then(function(){
+var o=b.textContent;b.textContent="Скопировано";
+setTimeout(function(){b.textContent=o},1200)
+})
+}
+
+function home(){
+var t=el("input");
+t.placeholder="Название";t.maxLength=100;
+var c=el("textarea");
+c.placeholder="Вставь код сюда";c.spellcheck=false;
+c.addEventListener("keydown",function(e){
+if(e.key==="Tab"){
+e.preventDefault();
+var s=c.selectionStart;
+c.value=c.value.slice(0,s)+"\t"+c.value.slice(c.selectionEnd);
+c.selectionStart=c.selectionEnd=s+1
+}
+});
+var b=el("button","primary","Опубликовать");
+var er=el("div","err");
+b.onclick=function(){
+if(!c.value.trim()){er.textContent="Пусто";return}
+b.disabled=true;er.textContent="";
+fetch(API+"/api/paste",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({title:t.value,content:c.value})})
+.then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})})
+.then(function(x){
+if(!x.ok){b.disabled=false;er.textContent=x.j.error||"Ошибка";return}
+localStorage.setItem("k:"+x.j.id,x.j.key);
+location.href="?id="+x.j.id
+})
+.catch(function(){b.disabled=false;er.textContent="Ошибка сети"})
+};
+var r=el("div","row");
+r.appendChild(b);
+app.append(t,c,r,er);
+}
+
+function view(){
+fetch(API+"/api/paste/"+id).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(p){
+document.title=p.title||id;
+var raw=API+"/raw/"+id;
+var lines=p.content.split("\n");
+var n=[];
+for(var i=1;i<=lines.length;i++)n.push(i);
+app.appendChild(el("h1","",p.title||"Без названия"));
+app.appendChild(el("div","meta",new Date(p.created).toLocaleString()+" · "+lines.length+" строк · "+p.content.length+" символов"));
+var box=el("div","code");
+box.append(el("pre","gut",n.join("\n")),el("pre","",p.content));
+var r=el("div","row");
+var b1=el("button","","Копировать код");
+b1.onclick=function(){copy(p.content,b1)};
+var b2=el("a","btn","Raw");
+b2.href=raw;
+var b3=el("button","","Копировать loadstring");
+b3.onclick=function(){copy('loadstring(game:HttpGet("'+raw+'"))()',b3)};
+r.append(b1,b2,b3);
+var k=localStorage.getItem("k:"+id);
+if(k){
+var d=el("button","danger","Удалить");
+d.onclick=function(){
+if(!confirm("Удалить?"))return;
+fetch(API+"/api/paste/"+id,{method:"DELETE",headers:{"x-key":k}}).then(function(){
+localStorage.removeItem("k:"+id);
+location.href="./"
+})
+};
+r.appendChild(d)
+}
+app.append(r,el("div","meta"),box);
+}).catch(function(){app.appendChild(el("h1","","Не найдено"))});
+}
+
+if(/^[A-Za-z0-9]{8}$/.test(id))view();else home();
+</script>
+</body>
+</html>
